@@ -1,0 +1,20 @@
+# Basic params
+--report_title "Differential Accessibility: 04D vs 67D"
+--organism "mmu"
+--annotation_db "org.Mm.eg.db"
+--sample_sheet "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/licht-test-samples.csv"
+--contrasts "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/licht-test-contrasts.txt"
+--min_count_for_filtering "10"
+--min_prop_for_filtering "0.5"
+--seqID "NS3971_04D_vs_67D"
+--raw_seq_URL ""
+--multiqc_url ""
+
+# File specifications - CREATE FROM SCRATCH
+--dds_file ""
+--peak_annotation ""
+--peak_files "04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP1_genrich.narrowPeak,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP2_genrich.narrowPeak,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP3_genrich.narrowPeak,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP1_genrich.narrowPeak,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP2_genrich.narrowPeak,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP3_genrich.narrowPeak"
+--bam_files "04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP1_nsorted.bam,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP2_nsorted.bam,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP3_nsorted.bam,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP1_nsorted.bam,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP2_nsorted.bam,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP3_nsorted.bam"
+--bigwig_files "04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP1.mLb.clN.bigWig,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP2.mLb.clN.bigWig,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP3.mLb.clN.bigWig,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP1.mLb.clN.bigWig,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP2.mLb.clN.bigWig,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP3.mLb.clN.bigWig"
+--qc_flagstat_dir "/blue/cancercenter-dept/privapps/data/atac/licht/NS3971/"
+--qc_frip_file "/blue/cancercenter-dept/privapps/data/atac/licht/NS3971/multiqc_mlib_frip_score-plot.txt"

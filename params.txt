@@ -1,0 +1,20 @@
+# Existing params (keep these)
+--report_title "Differential Accessibility Analysis"
+--organism "mmu"
+--annotation_db "org.Mm.eg.db"
+#--sample_sheet "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test_samples.csv"
+--sample_sheet "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/samplesheet.valid.csv"
+--contrasts "contrasts_test.txt"
+# NEW: File specifications (use existing RData for now)
+--dds_file "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/consensus_peaks.mLb.clN.dds.RData"
+--peak_files "Control_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP1.mLb.clN_peaks.broadPeak,Control_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP2.mLb.clN_peaks.broadPeak,Control_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP3.mLb.clN_peaks.broadPeak,Heat_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP1.mLb.clN_peaks.broadPeak,Heat_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP2.mLb.clN_peaks.broadPeak,Heat_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP3.mLb.clN_peaks.broadPeak,Heat_REP4:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP4.mLb.clN_peaks.broadPeak"
+--bam_files ""
+--peak_annotation "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/consensus_peaks.mLb.clN.annotatePeaks.txt"
+--bigwig_files "Control_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP1.mLb.clN.bigWig,Control_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP2.mLb.clN.bigWig,Control_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP3.mLb.clN.bigWig,Heat_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP1.mLb.clN.bigWig,Heat_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP2.mLb.clN.bigWig,Heat_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP3.mLb.clN.bigWig,Heat_REP4:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP4.mLb.clN.bigWig"
+--qc_flagstat_dir "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/"
+--qc_frip_file "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/multiqc_mlib_frip_score-plot.txt"
+--min_count_for_filtering 10
+--min_prop_for_filtering 0.5
+--seqID "my-test"
+--raw_seq_URL ""
+--multiqc_url ""

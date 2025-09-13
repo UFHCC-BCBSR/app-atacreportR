@@ -1,0 +1,73 @@
+/apps/pandoc/2.2.2.1/bin/pandoc
+pandoc 2.2.2.1
+Compiled with pandoc-types 1.17.5.1, texmath 0.11.0.1, skylighting 0.7.2
+Default user data directory: /home/hkates/.pandoc
+Copyright (C) 2006-2018 John MacFarlane
+Web:  http://pandoc.org
+This is free software; see the source for copying conditions.
+There is no warranty, not even for merchantability or fitness
+for a particular purpose.
+1/71                              
+2/71 [setup]                      
+3/71                              
+4/71 [parse-params]               
+5/71                              
+6/71 [download raw data]          
+7/71                              
+8/71 [download multiqc]           
+9/71                              
+10/71 [load data]                  
+11/71                              
+12/71 [nfcore_description]         
+13/71                              
+14/71 [normalization_text]         
+15/71                              
+16/71 [make DGEList and norm]      
+17/71                              
+18/71 [sample info]                
+19/71                              
+20/71 [contrast-load]              
+21/71                              
+22/71 [setup_norm_titles]          
+23/71                              
+24/71 [pca_text]                   
+25/71                              
+26/71 [pca plot]                   
+27/71                              
+28/71 [corr_text]                  
+29/71                              
+30/71 [corr heatmaps]              
+31/71                              
+32/71 [annotate consensus peaks]   
+33/71                              
+34/71 [frip filter]                
+35/71                              
+36/71 [frip drop]                  
+37/71                              
+38/71 [analysis]                   
+39/71                              
+40/71 [contrast print]             
+41/71                              
+42/71 [summary]                    
+43/71                              
+44/71 [make downloads]             
+45/71                              
+46/71 [download table]             
+47/71                              
+48/71 [create washU datahubs]      
+49/71                              
+50/71 [display washU links]        
+51/71                              
+52/71 [plot_accessibility_ggplotly]
+53/71                              
+54/71 [ma plots]                   
+55/71                              
+56/71 [volcano]                    
+57/71                              
+58/71 [unnamed-chunk-1]            
+59/71                              
+60/71 [make gene lists]            
+61/71                              
+62/71 [GO]                         
+63/71                              
+64/71 [run GO enrich]              

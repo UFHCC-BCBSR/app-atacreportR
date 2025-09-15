@@ -45,7 +45,7 @@ prepare_analysis_data <- function(report_params) {
   return(list(
     dds = dds,
     sample_info = sample_info,
-    peak_anno = peak_anno, 
+    peaks_anno = peak_anno, 
     file_specs = file_specs,  
     qc_data = qc_data,
     bigwig_files = file_specs$bigwig_files

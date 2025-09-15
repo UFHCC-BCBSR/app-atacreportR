@@ -47,6 +47,7 @@ select <- dplyr::select
 # Uncomment and edit this for interactive
 #params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/params.txt'
 params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/licht-test-params.txt'
+params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/my-test-app-params.txt'
 ```
 
 ```{r parse-params, include=FALSE}
@@ -492,12 +493,21 @@ dge <- dge[, colnames(dge) %in% high_quality_samples]
 ```
 
 ```{r analysis}
+# Source the file to define the function
 invisible(
   suppressMessages(
     suppressWarnings(
       capture.output(source("R/analysis.R", local = knitr::knit_global()))
     )
   )
+)
+
+# Now call the function with the required parameters
+results_list <- run_differential_analysis(
+  dge = dge, 
+  peaks_anno = analysis_data$peaks_anno,  # or peak_anno, depending on naming fix
+  contrast_strings = contrast_strings,
+  report_params = report_params
 )
 ```
 

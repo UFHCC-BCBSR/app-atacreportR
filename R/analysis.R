@@ -1,4 +1,6 @@
-# Annotate peaks
+run_differential_analysis <- function(dge, peaks_anno, contrast_strings, report_params) {
+  # Annotate peaks
+  
 row.names(peaks_anno) <- peaks_anno$interval
 dge$genes <- peaks_anno[rownames(dge), ]
 
@@ -59,5 +61,6 @@ for (i in seq_along(contrast_list)) {
   result <- glmQLFTest(fit_contrast, contrast = contrast_vec)
   results_list[[contrast_name]] <- topTags(result, n = Inf)
 }
-
+return(results_list)
+}
 

@@ -1267,6 +1267,7 @@ server <- function(input, output, session) {
   })
   
   # Submit job - CORRECTED VERSION  
+  # Submit job - SIMPLIFIED VERSION with command display
   observeEvent(input$submit_job, {
     req(values$params_valid)
     tryCatch({
@@ -1276,57 +1277,40 @@ server <- function(input, output, session) {
         params <- parse_params_file(values$existing_params_file)
         seqID <- params$seqID %||% "unknown"
         output_path <- params[["output-path"]] %||% params[["output_path"]] %||% input$output_path
-        hipergator_group <- params[["hipergator-group"]] %||% params[["hipergator_group"]] %||% input$hipergator_group
+        report_title <- params$report_title %||% "ATAC-seq Analysis Report"
         
         # Copy to output directory with standard name
         final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
         file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
       } else {
-        # Using generated params - should already be in correct location
+        # Using generated params
         req(values$params_generated)
         seqID <- input$seqID
         output_path <- input$output_path
-        hipergator_group <- input$hipergator_group
+        report_title <- input$report_title
         final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         
-        # Double-check the file exists in the right place
         if (!file.exists(final_params_path)) {
           stop("Generated params file not found at expected location: ", final_params_path)
         }
       }
       
-      # Verify final params file exists
-      if (!file.exists(final_params_path)) {
-        stop("Parameters file not found: ", final_params_path)
-      }
+      # Get just the basename for the sbatch argument
+      params_basename <- basename(final_params_path)
       
-      # Read template and create custom sbatch file
-      template_path <- "render-report-template.sbatch"
-      if (!file.exists(template_path)) {
-        stop("Template sbatch file not found: ", template_path)
-      }
+      # Build the command arguments
+      sbatch_args <- c("render-report.sbatch",
+                       "--params-file", params_basename,
+                       "--title", shQuote(report_title))
       
-      template_content <- readLines(template_path)
+      # Create the full command string for display
+      full_command <- paste("sbatch", paste(sbatch_args, collapse = " "))
       
-      # Replace placeholders
-      work_dir <- output_path  # Use output_path as work directory
-      custom_content <- gsub("HIPERGATOR_GROUP", hipergator_group, template_content)
-      custom_content <- gsub("WORK_DIR", work_dir, custom_content)
-      
-      # Write custom sbatch file to output directory
-      custom_sbatch_path <- file.path(output_path, paste0(seqID, "_render.sbatch"))
-      writeLines(custom_content, custom_sbatch_path)
-      
-      # Submit job from the output directory
-      old_wd <- getwd()
-      setwd(output_path)
-      
+      # Use your existing sbatch script with arguments
       result <- system2("sbatch",
-                        args = c(basename(custom_sbatch_path)),
+                        args = sbatch_args,
                         stdout = TRUE, stderr = TRUE)
-      
-      setwd(old_wd)
       
       if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
         job_output <- paste(result, collapse = "\n")
@@ -1334,15 +1318,19 @@ server <- function(input, output, session) {
         if (job_id_match > 0) {
           job_id <- regmatches(job_output, job_id_match)
           job_id <- gsub("Submitted batch job ", "", job_id)
-          showNotification(paste("SLURM job submitted successfully! Job ID:", job_id, 
-                                 "\nParams file:", final_params_path,
-                                 "\nSbatch file:", custom_sbatch_path), 
+          showNotification(paste("SLURM job submitted successfully! Job ID:", job_id,
+                                 "\nCommand:", full_command,
+                                 "\nParams file:", final_params_path), 
                            type = "message", duration = 15)
         } else {
-          showNotification("SLURM job submitted successfully!", type = "message")
+          showNotification(paste("SLURM job submitted successfully!",
+                                 "\nCommand:", full_command,
+                                 "\nParams file:", final_params_path), 
+                           type = "message")
         }
       } else {
-        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"))
+        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"),
+                           "\nCommand attempted:", full_command)
         showNotification(error_msg, type = "error", duration = 15)
       }
       

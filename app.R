@@ -1300,8 +1300,8 @@ server <- function(input, output, session) {
       params_basename <- basename(final_params_path)
       
       # Build the command arguments
-      sbatch_args <- c("render-report.sbatch",
-                       "--params-file", params_basename,
+      sbatch_args <- c("render-report-with-params.sbatch",
+                       "--params-file", final_params_path,  # Use full path instead of basename
                        "--title", shQuote(report_title))
       
       # Create the full command string for display

@@ -47,9 +47,9 @@ select <- dplyr::select
 
 # Edit this for interactive use
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
-# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/my-test-app-params.txt'
+params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
-# params_path <- NS3971-test_params.txt
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
 ```
 
 ```{r parse-params, include=FALSE}
@@ -269,6 +269,88 @@ dge_raw$samples$norm.factors <- rep(1, ncol(dge_raw))
 colData(analysis_data$dds)$sizeFactor <- dge$samples$norm.factors
 atac_qc_table <- summarize_atac_sample_qc(analysis_data, render_table = FALSE)
 DT::datatable(atac_qc_table, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
+```
+
+## Download Raw and Normalized Consensus Peak Counts Data
+
+**Description of Data Sheets:**
+
+1. **Raw**: Original read counts per consensus peak from featureCounts analysis, before any normalization. Use for alternative analysis pipelines or tools requiring raw counts.
+
+2. **Normalized**: Count values adjusted for library size and compositional differences between samples (TMM or spike-in normalized). These represent the "corrected" counts accounting for technical variation.
+
+3. **CPM**: Counts per million reads, normalized for both library size and sample composition. Useful for comparing relative accessibility between peaks and samples.
+
+4. **LCPM**: Log₂-transformed CPM values. These are typically used for visualization (PCA plots, heatmaps) and downstream statistical analysis.
+
+5. **Peak_Annotations**: Genomic coordinates (chromosome, start, end, width) for each consensus peak, plus any available gene annotations.
+
+6. **Sample_Metadata**: Sample information including library sizes, normalization factors, and experimental metadata.
+
+The Excel file containing these datasets can be downloaded using the link below.
+
+```{r downloads}
+# Load necessary libraries
+library(openxlsx)
+library(dplyr)
+
+# Description of Data Sheets:
+# 1. **Raw**: Raw consensus peak count matrix before normalization
+# 2. **Normalized**: Normalized peak counts (TMM or spike-in adjusted, scaled to mean library size)
+# 3. **CPM**: Counts per million normalized for library size and composition
+# 4. **LCPM**: Log-transformed CPM values, useful for visualization
+# 5. **Peak_Annotations**: Consensus peak genomic coordinates and annotations
+# 6. **Sample_Metadata**: Sample information including normalization factors and library sizes
+
+
+# Create peak annotations
+peak_annotations <- analysis_data$peaks_anno
+
+# Extract raw counts
+raw_counts_df <- as.data.frame(dge_raw$counts)  # Use dge_raw (norm.factors = 1)
+raw_counts_df$Peak_ID <- rownames(raw_counts_df)
+raw_counts_df <- raw_counts_df %>% select(Peak_ID, everything())
+
+# Calculate normalized counts (using existing normalization factors)
+normalized_counts <- cpm(dge, normalized.lib.sizes = TRUE) * mean(dge$samples$lib.size) / 1e6
+normalized_counts_df <- as.data.frame(normalized_counts)
+normalized_counts_df$Peak_ID <- rownames(normalized_counts_df)
+normalized_counts_df <- normalized_counts_df %>% select(Peak_ID, everything())
+
+# Calculate CPM values (normalized for library size and composition)
+cpm_values <- cpm(dge, normalized.lib.sizes = TRUE)
+cpm_df <- as.data.frame(cpm_values)
+cpm_df$Peak_ID <- rownames(cpm_df)
+cpm_df <- cpm_df %>% select(Peak_ID, everything())
+
+# Calculate log CPM values
+lcpm_values <- cpm(dge, normalized.lib.sizes = TRUE, log = TRUE)
+lcpm_df <- as.data.frame(lcpm_values)
+lcpm_df$Peak_ID <- rownames(lcpm_df)
+lcpm_df <- lcpm_df %>% select(Peak_ID, everything())
+
+# Extract sample metadata (includes normalization factors)
+sample_metadata <- dge$samples
+
+# Create Excel export list
+peak_data_list <- list(
+  "Raw" = raw_counts_df,
+  "Normalized" = normalized_counts_df,
+  "CPM" = cpm_df,
+  "LCPM" = lcpm_df,
+  "Peak_Annotations" = peak_annotations,
+  "Sample_Metadata" = sample_metadata
+)
+
+# Generate download button
+peak_data_list %>% downloadthis::download_this(
+  output_name = "ATACseq_Consensus_Peaks_Data",
+  output_extension = ".xlsx",
+  button_label = "Download Consensus Peak Data Counts File",
+  button_type = "primary",
+  has_icon = TRUE,
+  icon = "fa fa-save"
+)
 ```
 
 ```{r contrast-load}

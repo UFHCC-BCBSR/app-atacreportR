@@ -10,31 +10,33 @@
 #SBATCH --account=cancercenter-dept
 #SBATCH --qos=cancercenter-dept
 
-# Usage: sbatch render-report.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title"
+# Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title"
+# NOTE: Run this script from the directory containing atac_edgeR_report.Rmd
+
 # Parse command line arguments
 PARAMS_FILE=""
 REPORT_TITLE="ATAC-seq Differential Accessibility Analysis"
 OUTPUT_DIR=""
 
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    --params-file)
-      PARAMS_FILE="$2"
-      shift 2
-      ;;
-    --title)
-      REPORT_TITLE="$2"
-      shift 2
-      ;;
-    --output-dir)
-      OUTPUT_DIR="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown parameter: $1"
-      exit 1
-      ;;
-  esac
+case $1 in
+  --params-file)
+    PARAMS_FILE="$2"
+    shift 2
+    ;;
+  --title)
+    REPORT_TITLE="$2"
+    shift 2
+    ;;
+  --output-dir)
+    OUTPUT_DIR="$2"
+    shift 2
+    ;;
+  *)
+    echo "Unknown parameter: $1"
+    exit 1
+    ;;
+esac
 done
 
 # Validate required arguments
@@ -57,24 +59,24 @@ echo "Report title: $REPORT_TITLE"
 echo "Start time: $(date)"
 echo "=========================================="
 
+# Initialize module system
+source /etc/profile.d/modules.sh
+
+# Load modules
 module purge
 module load R/4.5
 module load pandoc/2.2.2.1
 
-# Debug: check if pandoc is available
+# Debug: check if they work
+which Rscript
 which pandoc
 pandoc --version
 
-# Get the directory where this sbatch script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# cd "$SCRIPT_DIR"
-cd /blue/cancercenter-dept/hkates/Apps/new-atacreportR
-
-# Set RSTUDIO_PANDOC to help R find pandoc
+# Set RSTUDIO_PANDOC
 export RSTUDIO_PANDOC=$(which pandoc | xargs dirname)
 
 # Set output file name
-SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2)
+SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
 if [[ -z "$SEQID" ]]; then
   SEQID="ATAC_Report"
 fi

@@ -48,7 +48,8 @@ select <- dplyr::select
 # Edit this for interactive use
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/my-test-app-params.txt'
-params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
+# params_path <- NS3971-test_params.txt
 ```
 
 ```{r parse-params, include=FALSE}

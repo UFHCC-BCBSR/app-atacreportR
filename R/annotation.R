@@ -1,6 +1,5 @@
 library(ChIPseeker)
 library(GenomicFeatures)
-
 generate_peak_annotation <- function(dds, organism) {
   cat("Generating peak annotation with ChIPseeker for organism:", organism, "\n")
   
@@ -22,6 +21,17 @@ generate_peak_annotation <- function(dds, organism) {
     cat("Using human genome annotation (hg38)\n")
   } else {
     stop("Unsupported organism: ", organism, ". Use 'mmu' or 'hsa'")
+  }
+  
+  # FIX: Standardize chromosome names to UCSC format
+  cat("Standardizing chromosome names...\n")
+  current_chroms <- seqlevels(consensus_peaks)
+  cat("Current chromosome names:", paste(head(current_chroms), collapse=", "), "\n")
+  
+  # Add "chr" prefix if missing (for UCSC compatibility)
+  if (!any(grepl("^chr", current_chroms))) {
+    seqlevels(consensus_peaks) <- paste0("chr", seqlevels(consensus_peaks))
+    cat("Added 'chr' prefix to chromosome names\n")
   }
   
   # Annotate peaks
@@ -63,7 +73,6 @@ generate_peak_annotation <- function(dds, organism) {
   
   return(anno_df)
 }
-
 load_peak_annotation <- function(annotation_file_path) {
   cat("Loading existing peak annotation from:", basename(annotation_file_path), "\n")
   

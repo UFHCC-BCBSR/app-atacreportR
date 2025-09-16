@@ -24,6 +24,8 @@ date: "`r format(Sys.time(), '%m/%d/%y')`"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.align="center")
+
+# Load libraries
 library(DESeq2)
 library(pheatmap)
 library(ggplot2)
@@ -37,45 +39,34 @@ library(knitr)
 library(DT)
 library(ggfortify)
 library(scales)
-library(dplyr)
 library(stringr)
-library(ggplot2)
-library(htmltools)
-source("R/ATACseq_report_funcs.R", local = knitr::knit_global())
 library(downloadthis)
+
+source("R/ATACseq_report_funcs.R", local = knitr::knit_global())
 select <- dplyr::select
-# Uncomment and edit this for interactive
-#params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/params.txt'
-params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/licht-test-params.txt'
-params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/my-test-app-params.txt'
+
+# Edit this for interactive use
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/my-test-app-params.txt'
+params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
 ```
 
 ```{r parse-params, include=FALSE}
-# Check if we need to set the params file path
-if (exists("params_path") && (!exists("params") || is.null(params$params_file) || params$params_file == "")) {
+# Priority 1: Use params$params_file (passed from sbatch) - this overrides hardcoded
+if (exists("params") && !is.null(params$params_file) && params$params_file != "" && file.exists(params$params_file)) {
+  message("🔄 Using sbatch params file: ", basename(params$params_file))
+  params_file_to_use <- params$params_file
+  
+# Priority 2: Fall back to hardcoded params_path (for interactive RStudio testing)
+} else if (exists("params_path") && !is.null(params_path) && params_path != "" && file.exists(params_path)) {
   message("🔄 Using interactive params file: ", basename(params_path))
-  
-  # Check if file exists
-  if (!file.exists(params_path)) {
-    stop("Params file not found: ", params_path, "\n\n",
-         "Please check the file path and try again.")
-  }
-  
-  # Use params_path directly instead of reassigning params
   params_file_to_use <- params_path
   
-} else if (!exists("params") || is.null(params$params_file) || params$params_file == "") {
-  # No params_path set and no valid params
-  stop("No params file specified!\n\n",
-       "To render this report interactively, first set:\n",
-       "params_path <- '/path/to/your/params.txt'\n\n",
-       "Example:\n",
-       "params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/params.txt'\n\n",
-       "Then run the report chunks or knit the document.")
-       
+# Priority 3: Error - no valid params found
 } else {
-  # Use params from YAML header (app-driven rendering)
-  params_file_to_use <- params$params_file
+  stop("No valid params file found!\n\n",
+       "For interactive use, set: params_path <- '/path/to/your/params.txt'\n",
+       "For sbatch use, pass --params-file argument")
 }
 
 # Parse parameters
@@ -83,23 +74,10 @@ tryCatch({
   report_params <- parse_params(params_file_to_use)
 }, error = function(e) {
   stop("Failed to parse params file: ", params_file_to_use, "\n",
-       "Error: ", e$message, "\n\n",
-       "Please check that the params file exists and is properly formatted.")
+       "Error: ", e$message)
 })
 
-# Optional: Check for resolved_seq_dir (for backward compatibility)
-if (!is.null(report_params$seqID) && report_params$seqID != "") {
-  resolved_seq_dir <- Sys.glob(file.path("/blue/cancercenter-dept/privapps/data/atac", "*", report_params$seqID))[1]
-  if (is.na(resolved_seq_dir) || !dir.exists(resolved_seq_dir)) {
-    message("Legacy seqID directory not found: ", report_params$seqID, 
-            " (This is expected with the new flexible file system)")
-    resolved_seq_dir <- NULL
-  }
-} else {
-  resolved_seq_dir <- NULL
-}
-
-message("Parameters loaded successfully")
+message("Parameters loaded successfully from: ", basename(params_file_to_use))
 ```
 
 # Project Summary
@@ -135,8 +113,7 @@ message("Parameters loaded successfully")
 Below is a link to download the raw sequencing files. These files are very large (>150GB); download only when needed. Note that you **must be logged into your UF dropbox account** for this link to work.
 
 ```{r download raw data, echo=FALSE, results="asis"}
-url <- report_params$raw_seq_URL
-
+url <- if(!is.null(report_params$raw_seq_URL)) report_params$raw_seq_URL else ""
 if (url == "") {
   cat("<p><em>This file was not included in this report.</em></p>")
 } else {
@@ -150,8 +127,7 @@ MultiQC is a visualisation tool that generates a single HTML report summarising 
 
 
 ```{r download multiqc, echo=FALSE, results="asis"}
-url <- report_params$multiqc_url
-
+url <- if(!is.null(report_params$multiqc_url)) report_params$multiqc_url else ""
 if (url == "") {
   cat("<p><em>This file was not included in this report.</em></p>")
 } else {
@@ -168,7 +144,7 @@ analysis_data <- prepare_analysis_data(report_params)
 # Extract components (same variable names as before for compatibility)
 targetGenome_dds <- analysis_data$dds
 sample_info <- analysis_data$sample_info  
-peaks_anno <- analysis_data$peak_anno
+peaks_anno <- analysis_data$peaks_anno
 qc_data <- analysis_data$qc_data
 
 targetGenome_counts <- assay(targetGenome_dds, "counts")
@@ -505,7 +481,7 @@ invisible(
 # Now call the function with the required parameters
 results_list <- run_differential_analysis(
   dge = dge, 
-  peaks_anno = analysis_data$peaks_anno,  # or peak_anno, depending on naming fix
+  peaks_anno = analysis_data$peaks_anno, 
   contrast_strings = contrast_strings,
   report_params = report_params
 )

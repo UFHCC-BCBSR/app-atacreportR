@@ -1,0 +1,13 @@
+--sample_sheet '/blue/licht/runs/Evans-MDS/NS3971/RUN2/Downstream_Analysis/licht-test-samples.csv'
+--peak_files '04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP1_genrich.narrowPeak,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP2_genrich.narrowPeak,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/04D_REP3_genrich.narrowPeak,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP1_genrich.narrowPeak,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP2_genrich.narrowPeak,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/GENRICH/67D_REP3_genrich.narrowPeak'
+--bigwig_files '04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP1.mLb.clN.bigWig,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP2.mLb.clN.bigWig,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/04D_REP3.mLb.clN.bigWig,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP1.mLb.clN.bigWig,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP2.mLb.clN.bigWig,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/OUTPUT/bowtie2/merged_library/bigwig/67D_REP3.mLb.clN.bigWig'
+--contrasts '/blue/licht/runs/Evans-MDS/NS3971/RUN2/Downstream_Analysis/licht-test-contrasts.txt'
+--bam_files '04D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP1_nsorted.bam,04D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP2_nsorted.bam,04D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/04D_REP3_nsorted.bam,67D_REP1:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP1_nsorted.bam,67D_REP2:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP2_nsorted.bam,67D_REP3:/blue/licht/runs/Evans-MDS/NS3971/RUN2/GENRICH/PEAKS/67D_REP3_nsorted.bam'
+--min_count_for_filtering 10
+--min_prop_for_filtering 0.5
+--seqID 'NS3971-atac-test'
+--hipergator-group 'cancercenter-dept'
+--output-path '/blue/licht/runs/Evans-MDS/NS3971/RUN2/Downstream_Analysis/'
+--report_title 'Differential Accessibility Analysis'
+--organism 'mmu'
+--annotation_db 'org.Mm.eg.db'

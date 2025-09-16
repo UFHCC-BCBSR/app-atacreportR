@@ -295,6 +295,46 @@ ui <- fluidPage(
           textInput("multiqc_url", "MultiQC Results URL", placeholder = "https://...")
       )
   ),
+  # Add this new section after the Optional Parameters section and before the Validation section:
+  
+  # **Report Metadata**
+  div(class = "step-section",
+      h2("Report Metadata (Optional)", style = "text-align: center; margin-bottom: 30px;"),
+      p("These fields are used to populate the report header and summary. All are optional.", 
+        style = "text-align: center; color: #6c757d; margin-bottom: 20px;"),
+      
+      div(class = "param-group",
+          h4("Project Information"),
+          fluidRow(
+            column(6, textInput("PI", "Principal Investigator", placeholder = "Dr. Jane Smith")),
+            column(6, textInput("Institution", "Institution", placeholder = "University of Florida"))
+          ),
+          fluidRow(
+            column(6, textInput("Department", "Department", placeholder = "Department of Medicine")),
+            column(6, textInput("Study_Contact", "Study Contact", placeholder = "jane.smith@ufl.edu"))
+          ),
+          textInput("Project_Title", "Project Title", placeholder = "ATAC-seq analysis of...")
+      ),
+      
+      div(class = "param-group",
+          h4("Study Details"),
+          textAreaInput("Study_Summary", "Study Summary", 
+                        placeholder = "Brief description of the study objectives and design...",
+                        rows = 3),
+          fluidRow(
+            column(6, textInput("Sample_Types", "Sample Type(s)", placeholder = "Cell lines, tissue samples, etc.")),
+            column(6, textInput("Analysis_Goals", "Analysis Goal(s)", placeholder = "Differential accessibility, pathway analysis, etc."))
+          )
+      ),
+      
+      div(class = "param-group",
+          h4("Report Credits"),
+          fluidRow(
+            column(6, textInput("Report_Prepared_By", "Report Prepared By", placeholder = "Analyst Name")),
+            column(6, textInput("Report_Reviewed_By", "Report Reviewed By", placeholder = "Reviewer Name"))
+          )
+      )
+  ),
   
   # Validation and Generation
   # Replace the existing "Generate Parameters" section with this:
@@ -325,7 +365,9 @@ server <- function(input, output, session) {
     selected_files = list(),
     params_valid = FALSE,
     params_generated = FALSE,
-    validation_messages = c()
+    validation_messages = c(),
+    params_loaded = FALSE,        # Add this
+    user_made_changes = FALSE     # Add this
   )
   
   # Group passwords
@@ -370,7 +412,8 @@ server <- function(input, output, session) {
         
         # Initialize all file browsers
         shinyFileChoose(input, "browse_sample_sheet", roots = group_volumes, session = session, filetypes = c("", "csv"))
-        shinyFileChoose(input, "browse_peak_files", roots = group_volumes, session = session, filetypes = c("", "broadPeak"))
+        shinyFileChoose(input, "browse_existing_params", roots = group_volumes, session = session, filetypes = c("", "txt"))
+        shinyFileChoose(input, "browse_peak_files", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"))
         shinyFileChoose(input, "browse_bigwig_files", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"))
         shinyFileChoose(input, "browse_contrasts", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"))
         shinyFileChoose(input, "browse_dds_file", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"))
@@ -432,6 +475,7 @@ server <- function(input, output, session) {
   
   # Set up all file browsers
   setup_file_browser("browse_sample_sheet", "sample_sheet")
+  setup_file_browser("browse_existing_params", "existing_params")
   setup_file_browser("browse_peak_files", "peak_files", multiple = TRUE)
   setup_file_browser("browse_bigwig_files", "bigwig_files", multiple = TRUE)
   setup_file_browser("browse_contrasts", "contrasts")
@@ -510,15 +554,36 @@ server <- function(input, output, session) {
   })
   
   # Test the upload observer
+  # Fix the upload observer - copy to permanent location
   observeEvent(input$upload_existing_params, {
     cat("DEBUG: Upload observer triggered\n")
     if (!is.null(input$upload_existing_params)) {
       cat("DEBUG: File uploaded -", input$upload_existing_params$name, "\n")
-      values$existing_params_file <- input$upload_existing_params$datapath
-      cat("DEBUG: Stored file path -", values$existing_params_file, "\n")
+      
+      # Create permanent directory (same as sample sheet logic)
+      permanent_dir <- file.path(dirname(getwd()), "uploaded_files")
+      dir.create(permanent_dir, recursive = TRUE, showWarnings = FALSE)
+      
+      # Copy to permanent location with original filename
+      permanent_path <- file.path(permanent_dir, input$upload_existing_params$name)
+      file.copy(input$upload_existing_params$datapath, permanent_path, overwrite = TRUE)
+      
+      # Store the permanent path instead of temp path
+      values$existing_params_file <- permanent_path
+      
+      cat("DEBUG: Stored permanent file path -", values$existing_params_file, "\n")
       shinyjs::enable("load_existing_params")
       cat("DEBUG: Button enabled\n")
       showNotification("Params file uploaded - click Load Parameters to populate fields", type = "message")
+    }
+  })
+  
+  # Add this for browse selection:
+  observeEvent(values$selected_files$existing_params, {
+    if (!is.null(values$selected_files$existing_params)) {
+      values$existing_params_file <- values$selected_files$existing_params
+      shinyjs::enable("load_existing_params")
+      showNotification("Params file selected - click Load Parameters to populate fields", type = "message")
     }
   })
   
@@ -528,47 +593,84 @@ server <- function(input, output, session) {
     }
     
     lines <- readLines(params_file)
+    cat("DEBUG: Read", length(lines), "lines from file\n")
+    
     params <- list()
     
-    for (line in lines) {
+    for (i in seq_along(lines)) {
+      line <- lines[i]
       line <- trimws(line)
-      if (line == "" || startsWith(line, "#")) next
+      
+      if (line == "" || startsWith(line, "#")) {
+        next
+      }
       
       # Parse --param_name "value" or --param_name value
       if (startsWith(line, "--")) {
-        # Split on first space to get param name and value
-        parts <- strsplit(line, "\\s+", 2)[[1]]
-        if (length(parts) >= 2) {
-          param_name <- gsub("^--", "", parts[1])
-          param_value <- parts[2]
+        cat("DEBUG: Processing line:", substr(line, 1, 60), "...\n")
+        
+        # Find the first space after --
+        space_pos <- regexpr("\\s", line)
+        
+        if (space_pos > 0) {
+          param_name <- gsub("^--", "", substr(line, 1, space_pos - 1))
+          param_value <- trimws(substr(line, space_pos + 1, nchar(line)))
+          
+          cat("DEBUG: param_name:", param_name, "\n")
+          cat("DEBUG: param_value (before quote removal):", substr(param_value, 1, 50), "...\n")
           
           # Remove surrounding quotes if present
           if ((startsWith(param_value, '"') && endsWith(param_value, '"')) ||
               (startsWith(param_value, "'") && endsWith(param_value, "'"))) {
             param_value <- substr(param_value, 2, nchar(param_value) - 1)
+            cat("DEBUG: Removed quotes, new value:", substr(param_value, 1, 50), "...\n")
           }
           
           params[[param_name]] <- param_value
+          cat("DEBUG: Added parameter:", param_name, "\n")
+        } else {
+          cat("DEBUG: No space found in line\n")
         }
       }
     }
     
+    cat("DEBUG: Final parameter count:", length(params), "\n")
+    cat("DEBUG: Parameter names:", paste(names(params), collapse = ", "), "\n")
+    
     return(params)
   }
-  
   `%||%` <- function(x, y) if (is.null(x)) y else x
-  # Updated load existing parameters function
+  # Updated load existing parameters function with better debugging
   observeEvent(input$load_existing_params, {
     req(values$existing_params_file)
+    # Add this right after req(values$existing_params_file) in your load observer:
+    cat("DEBUG: About to read file:", values$existing_params_file, "\n")
+    raw_lines <- readLines(values$existing_params_file)
+    cat("DEBUG: Raw file has", length(raw_lines), "lines\n")
+    cat("DEBUG: First line raw:", raw_lines[1], "\n")
+    cat("DEBUG: First line bytes:", paste(utf8ToInt(raw_lines[1]), collapse = " "), "\n")
+    cat("DEBUG: Load button clicked, file path:", values$existing_params_file, "\n")
     
     tryCatch({
-      params <- parse_params_file(values$existing_params_file)
+      # Check if file exists
+      if (!file.exists(values$existing_params_file)) {
+        stop("File not found: ", values$existing_params_file)
+      }
       
-      # Populate ALL UI text inputs
+      cat("DEBUG: File exists, parsing...\n")
+      params <- parse_params_file(values$existing_params_file)
+      cat("DEBUG: Parsed", length(params), "parameters\n")
+      cat("DEBUG: Parameter names:", paste(names(params), collapse = ", "), "\n")
+      
+      # Test one parameter update
       if ("seqID" %in% names(params)) {
+        cat("DEBUG: Updating seqID to:", params$seqID, "\n")
         updateTextInput(session, "seqID", value = params$seqID)
       }
+      
+      # Populate ALL UI text inputs
       if ("report_title" %in% names(params)) {
+        cat("DEBUG: Updating report_title to:", params$report_title, "\n")
         updateTextInput(session, "report_title", value = params$report_title)
       }
       if ("organism" %in% names(params)) {
@@ -608,18 +710,48 @@ server <- function(input, output, session) {
         updateTextInput(session, "multiqc_url", value = params$multiqc_url)
       }
       
-      # Handle contrasts - populate the text field if it's not a file
+      # Load report metadata parameters
+      if ("PI" %in% names(params)) {
+        updateTextInput(session, "PI", value = params$PI)
+      }
+      if ("Institution" %in% names(params)) {
+        updateTextInput(session, "Institution", value = params$Institution)
+      }
+      if ("Department" %in% names(params)) {
+        updateTextInput(session, "Department", value = params$Department)
+      }
+      if ("Study_Contact" %in% names(params)) {
+        updateTextInput(session, "Study_Contact", value = params$Study_Contact)
+      }
+      if ("Project_Title" %in% names(params)) {
+        updateTextInput(session, "Project_Title", value = params$Project_Title)
+      }
+      if ("Study_Summary" %in% names(params)) {
+        updateTextAreaInput(session, "Study_Summary", value = params$Study_Summary)
+      }
+      if ("Sample_Types" %in% names(params)) {
+        updateTextInput(session, "Sample_Types", value = params$Sample_Types)
+      }
+      if ("Analysis_Goals" %in% names(params)) {
+        updateTextInput(session, "Analysis_Goals", value = params$Analysis_Goals)
+      }
+      if ("Report_Prepared_By" %in% names(params)) {
+        updateTextInput(session, "Report_Prepared_By", value = params$Report_Prepared_By)
+      }
+      if ("Report_Reviewed_By" %in% names(params)) {
+        updateTextInput(session, "Report_Reviewed_By", value = params$Report_Reviewed_By)
+      }
+      
+      # Handle contrasts
       if ("contrasts" %in% names(params)) {
         if (!file.exists(params$contrasts)) {
-          # It's text contrasts, not a file
           updateTextInput(session, "contrasts_text", value = params$contrasts)
         } else {
-          # It's a file - store the path but can't browse to it without authentication
           values$selected_files$contrasts <- params$contrasts
         }
       }
       
-      # Store file paths in values (user will need to re-browse if they want to change)
+      # Store file paths
       if ("sample_sheet" %in% names(params)) {
         values$selected_files$sample_sheet <- params$sample_sheet
         values$sample_sheet_source <- "loaded_from_params"
@@ -629,12 +761,13 @@ server <- function(input, output, session) {
       # Parse and store file lists
       parse_file_pairs <- function(param_value) {
         if (is.null(param_value) || param_value == "") return(NULL)
+        param_value <- gsub('^["\']|["\']$', '', param_value)
         pairs <- strsplit(param_value, ",")[[1]]
-        files <- sapply(pairs, function(x) {
+        sapply(pairs, function(x) {
+          x <- gsub('^["\']|["\']$', '', trimws(x))
           parts <- strsplit(x, ":")[[1]]
           if (length(parts) >= 2) parts[2] else x
         })
-        return(unname(files))
       }
       
       if ("peak_files" %in% names(params)) {
@@ -646,8 +779,6 @@ server <- function(input, output, session) {
       if ("bam_files" %in% names(params)) {
         values$selected_files$bam_files <- parse_file_pairs(params$bam_files)
       }
-      
-      # Store other file paths
       if ("dds_file" %in% names(params)) {
         values$selected_files$dds_file <- params$dds_file
       }
@@ -661,12 +792,11 @@ server <- function(input, output, session) {
         values$selected_files$qc_frip_file <- params$qc_frip_file
       }
       
-      # Clear the existing params file reference so validation uses UI fields
-      values$existing_params_file <- NULL
-      
-      showNotification("Parameters loaded successfully! All fields have been populated. You can now modify any fields and regenerate.", type = "message", duration = 10)
+      cat("DEBUG: All updates completed successfully\n")
+      showNotification("Parameters loaded successfully from file!", type = "message")
       
     }, error = function(e) {
+      cat("DEBUG: Error in load_existing_params:", e$message, "\n")
       showNotification(paste("Error loading parameters:", e$message), type = "error")
     })
   })
@@ -778,6 +908,35 @@ server <- function(input, output, session) {
           strong("Selected: "), basename(values$selected_files$qc_frip_file),
           tags$br(),
           tags$span(style = "font-size: 10px;", values$selected_files$qc_frip_file)
+      )
+    }
+  })
+  
+  # Add these output handlers
+  output$selected_existing_params_file <- renderUI({
+    if (!is.null(values$selected_files$existing_params)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$existing_params),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$existing_params)
+      )
+    }
+  })
+  
+  output$uploaded_params_status <- renderUI({
+    if (!is.null(values$existing_params_file)) {
+      div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px;",
+          tags$i(class = "fa fa-check-circle", style = "color: #155724;"),
+          strong(" File ready: "), basename(values$existing_params_file)
+      )
+    }
+  })
+  
+  output$params_load_status <- renderUI({
+    if (!is.null(input$load_existing_params) && input$load_existing_params > 0) {
+      div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px;",
+          tags$i(class = "fa fa-info-circle", style = "color: #155724;"),
+          strong("Parameters loaded! "), "You can now modify fields and regenerate."
       )
     }
   })
@@ -903,6 +1062,49 @@ server <- function(input, output, session) {
     lines <- c()
     
     # Required parameters
+    lines <- c(lines, paste("--seqID", shQuote(input$seqID)))
+    lines <- c(lines, paste("--report_title", shQuote(input$report_title)))
+    lines <- c(lines, paste("--organism", shQuote(input$organism)))
+    lines <- c(lines, paste("--annotation_db", shQuote(input$annotation_db)))
+    lines <- c(lines, paste("--hipergator-group", shQuote(input$hipergator_group)))
+    lines <- c(lines, paste("--output-path", shQuote(input$output_path)))
+    lines <- c(lines, paste("--user_email", shQuote(input$user_email)))
+    lines <- c(lines, paste("--min_count_for_filtering", input$min_count_for_filtering))
+    lines <- c(lines, paste("--min_prop_for_filtering", input$min_prop_for_filtering))
+    lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files$sample_sheet)))
+    
+    # Report metadata parameters (only add if not empty)
+    if (!is.null(input$PI) && input$PI != "") {
+      lines <- c(lines, paste("--PI", shQuote(input$PI)))
+    }
+    if (!is.null(input$Institution) && input$Institution != "") {
+      lines <- c(lines, paste("--Institution", shQuote(input$Institution)))
+    }
+    if (!is.null(input$Department) && input$Department != "") {
+      lines <- c(lines, paste("--Department", shQuote(input$Department)))
+    }
+    if (!is.null(input$Study_Contact) && input$Study_Contact != "") {
+      lines <- c(lines, paste("--Study_Contact", shQuote(input$Study_Contact)))
+    }
+    if (!is.null(input$Project_Title) && input$Project_Title != "") {
+      lines <- c(lines, paste("--Project_Title", shQuote(input$Project_Title)))
+    }
+    if (!is.null(input$Study_Summary) && input$Study_Summary != "") {
+      lines <- c(lines, paste("--Study_Summary", shQuote(input$Study_Summary)))
+    }
+    if (!is.null(input$Sample_Types) && input$Sample_Types != "") {
+      lines <- c(lines, paste("--Sample_Types", shQuote(input$Sample_Types)))
+    }
+    if (!is.null(input$Analysis_Goals) && input$Analysis_Goals != "") {
+      lines <- c(lines, paste("--Analysis_Goals", shQuote(input$Analysis_Goals)))
+    }
+    if (!is.null(input$Report_Prepared_By) && input$Report_Prepared_By != "") {
+      lines <- c(lines, paste("--Report_Prepared_By", shQuote(input$Report_Prepared_By)))
+    }
+    if (!is.null(input$Report_Reviewed_By) && input$Report_Reviewed_By != "") {
+      lines <- c(lines, paste("--Report_Reviewed_By", shQuote(input$Report_Reviewed_By)))
+    }
+    # Required parameters
     lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files$sample_sheet)))
     
     # Format peak files with sample matching
@@ -1003,28 +1205,33 @@ server <- function(input, output, session) {
   }
   
   # Generate params file
+  # Generate params file - CORRECTED VERSION
   observeEvent(input$generate_params, {
     req(values$params_valid)
-    
     tryCatch({
-      params_content <- generate_params_content()
+      # Ensure output directory exists
+      if (!dir.exists(input$output_path)) {
+        dir.create(input$output_path, recursive = TRUE, showWarnings = FALSE)
+      }
       
-      # Write params file to a temporary location or specified output directory
-      params_file <- file.path(tempdir(), paste0(input$seqID, "_params.txt"))
+      # Generate params file directly to HiPerGator storage (NOT tempdir!)
+      params_file <- file.path(input$output_path, paste0(input$seqID, "_params.txt"))
+      params_content <- generate_params_content()
       writeLines(params_content, params_file)
       
+      # Store the PERMANENT path, not tempdir
       values$params_file_path <- params_file
       values$params_generated <- TRUE
       
       shinyjs::enable("submit_job")
+      shinyjs::enable("download_params")
       
-      showNotification("Parameters file generated successfully!", type = "message")
+      showNotification(paste("Parameters file saved to HiPerGator:", params_file), type = "message")
       
     }, error = function(e) {
       showNotification(paste("Error generating params file:", e$message), type = "error")
     })
   })
-  
   # Display params preview
   output$params_preview <- renderText({
     if (values$params_generated && !is.null(values$params_file_path)) {
@@ -1059,64 +1266,106 @@ server <- function(input, output, session) {
     }
   })
   
-  # Also update the generate_params observer to enable the download button:
-  observeEvent(input$generate_params, {
-    req(values$params_valid)
-    tryCatch({
-      params_content <- generate_params_content()
-      # Write params file to a temporary location or specified output directory
-      params_file <- file.path(tempdir(), paste0(input$seqID, "_params.txt"))
-      writeLines(params_content, params_file)
-      values$params_file_path <- params_file
-      values$params_generated <- TRUE
-      shinyjs::enable("submit_job")
-      shinyjs::enable("download_params")  # Enable download button
-      showNotification("Parameters file generated successfully!", type = "message")
-    }, error = function(e) {
-      showNotification(paste("Error generating params file:", e$message), type = "error")
-    })
-  })
-  # Update the submit job event handler:
+  # Submit job - CORRECTED VERSION  
   observeEvent(input$submit_job, {
     req(values$params_valid)
-    
     tryCatch({
-      # Use loaded params file if available, otherwise generate new one
+      # Determine which params file to use
       if (!is.null(values$existing_params_file) && file.exists(values$existing_params_file)) {
-        final_params_path <- values$existing_params_file
+        # Using loaded params file
         params <- parse_params_file(values$existing_params_file)
         seqID <- params$seqID %||% "unknown"
-        hipergator_group <- params[["hipergator-group"]] %||% params[["hipergator_group"]] %||% input$hipergator_group
         output_path <- params[["output-path"]] %||% params[["output_path"]] %||% input$output_path
-        user_email <- params[["user_email"]] %||% input$user_email
+        hipergator_group <- params[["hipergator-group"]] %||% params[["hipergator_group"]] %||% input$hipergator_group
+        
+        # Copy to output directory with standard name
+        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
+        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+        file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
       } else {
-        # Generate new params file (existing logic)
-        req(values$params_generated, values$params_file_path)
-        final_params_path <- file.path(input$output_path, paste0(input$seqID, "_params.txt"))
-        dir.create(input$output_path, recursive = TRUE, showWarnings = FALSE)
-        file.copy(values$params_file_path, final_params_path, overwrite = TRUE)
+        # Using generated params - should already be in correct location
+        req(values$params_generated)
         seqID <- input$seqID
-        hipergator_group <- input$hipergator_group
         output_path <- input$output_path
-        user_email <- input$user_email
+        hipergator_group <- input$hipergator_group
+        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
+        
+        # Double-check the file exists in the right place
+        if (!file.exists(final_params_path)) {
+          stop("Generated params file not found at expected location: ", final_params_path)
+        }
       }
       
-      # Submit sbatch job with the appropriate params
+      # Verify final params file exists
+      if (!file.exists(final_params_path)) {
+        stop("Parameters file not found: ", final_params_path)
+      }
+      
+      # Read template and create custom sbatch file
+      template_path <- "render-report-template.sbatch"
+      if (!file.exists(template_path)) {
+        stop("Template sbatch file not found: ", template_path)
+      }
+      
+      template_content <- readLines(template_path)
+      
+      # Replace placeholders
+      work_dir <- output_path  # Use output_path as work directory
+      custom_content <- gsub("HIPERGATOR_GROUP", hipergator_group, template_content)
+      custom_content <- gsub("WORK_DIR", work_dir, custom_content)
+      
+      # Write custom sbatch file to output directory
+      custom_sbatch_path <- file.path(output_path, paste0(seqID, "_render.sbatch"))
+      writeLines(custom_content, custom_sbatch_path)
+      
+      # Submit job from the output directory
+      old_wd <- getwd()
+      setwd(output_path)
+      
       result <- system2("sbatch",
-                        args = c("app-render-report.sbatch",
-                                 "--params-file", final_params_path,
-                                 "--hipergator-group", hipergator_group,
-                                 "--output-path", output_path,
-                                 if (!is.null(user_email) && user_email != "") c("--user-email", user_email) else NULL),
+                        args = c(basename(custom_sbatch_path)),
                         stdout = TRUE, stderr = TRUE)
       
-      # Rest of success/error handling...
+      setwd(old_wd)
+      
+      if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
+        job_output <- paste(result, collapse = "\n")
+        job_id_match <- regexpr("Submitted batch job ([0-9]+)", job_output)
+        if (job_id_match > 0) {
+          job_id <- regmatches(job_output, job_id_match)
+          job_id <- gsub("Submitted batch job ", "", job_id)
+          showNotification(paste("SLURM job submitted successfully! Job ID:", job_id, 
+                                 "\nParams file:", final_params_path,
+                                 "\nSbatch file:", custom_sbatch_path), 
+                           type = "message", duration = 15)
+        } else {
+          showNotification("SLURM job submitted successfully!", type = "message")
+        }
+      } else {
+        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"))
+        showNotification(error_msg, type = "error", duration = 15)
+      }
       
     }, error = function(e) {
       showNotification(paste("Error submitting SLURM job:", e$message), type = "error")
     })
   })
-  
+  # Add this observer to detect when user makes changes after loading:
+  observe({
+    # List of inputs to watch for changes
+    input_list <- list(input$seqID, input$report_title, input$organism, input$annotation_db,
+                       input$hipergator_group, input$output_path, input$user_email,
+                       input$contrasts_text, input$raw_seq_URL, input$multiqc_url,
+                       input$PI, input$Institution, input$Department, input$Study_Contact,
+                       input$Project_Title, input$Study_Summary, input$Sample_Types,
+                       input$Analysis_Goals, input$Report_Prepared_By, input$Report_Reviewed_By)
+    
+    if (values$params_loaded) {
+      values$user_made_changes <- TRUE
+      # Reset the existing_params_file reference so new generation is used
+      values$existing_params_file <- NULL
+    }
+  })
   # Enable/disable buttons based on validation state
   observe({
     if (values$params_valid && values$params_generated) {

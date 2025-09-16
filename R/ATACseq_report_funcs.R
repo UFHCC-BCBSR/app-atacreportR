@@ -67,11 +67,9 @@ download_button_png <- function(plot_object, output_name = "plot", width = 12, h
   # Return the HTML download button
   return(download_button)
 }
-
 summarize_atac_sample_qc <- function(analysis_data, render_table = TRUE) {
   dds <- analysis_data$dds
   samples <- colnames(dds)
-  
   # Get file specifications
   file_specs <- analysis_data$file_specs
   peak_files <- file_specs$peak_files
@@ -153,23 +151,21 @@ summarize_atac_sample_qc <- function(analysis_data, render_table = TRUE) {
     })
   }
   
-  # === 4. FRIP SCORES (using old approach to avoid duplicates) ===
-  # Process FRIP data  
+  # === 4. FRIP SCORES ===
+  # FIX: Always create frip_df, even if no FRiP data exists
+  frip_df <- tibble::tibble(Sample = samples, FRIP = NA_real_)
+  
   if (!is.null(qc_data$frip)) {
-    frip_df <- tibble::tibble(Sample = samples, FRIP = NA_real_)
-    
     # Extract FRIP values - handle column name mismatches
     for (sample in samples) {
       # Try multiple column name formats
       possible_cols <- c(
-        sample,                    # Direct match: "04D_REP1" 
+        sample,                    # Direct match: "04D_REP1"
         paste0("X", sample),       # X prefix: "X04D_REP1"
         gsub("_", ".", sample)     # Dots instead: "04D.REP1"
       )
-      
       # Find which column exists
       matching_col <- intersect(possible_cols, colnames(qc_data$frip))
-      
       if (length(matching_col) > 0) {
         # Find the row where this sample's FRiP value is stored
         sample_row <- which(qc_data$frip$Sample == sample)
@@ -951,23 +947,19 @@ find_variable_for_contrast <- function(group1, group2, metadata) {
 parse_params <- function(filepath) {
   lines <- readLines(filepath)
   param_list <- list()
-  
   for (line in lines) {
     if (grepl("^--", line)) {
       parts <- strsplit(line, " ", fixed = TRUE)[[1]]
       key <- gsub("^--", "", parts[1])  # Remove leading --
       value <- paste(parts[-1], collapse = " ")
-      value <- gsub('^"|"$', '', value)  # Remove surrounding quotes
-      
+      value <- gsub("^['\"]|['\"]$", "", value)  # Remove surrounding quotes (both single and double)
       # Convert to numeric if it looks like a number
       if (!is.na(suppressWarnings(as.numeric(value)))) {
         value <- as.numeric(value)
       }
-      
       param_list[[key]] <- value
     }
   }
-  
   return(param_list)
 }
 

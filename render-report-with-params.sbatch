@@ -65,13 +65,16 @@ module load pandoc/2.2.2.1
 which pandoc
 pandoc --version
 
+# Get the directory where this sbatch script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# cd "$SCRIPT_DIR"
 cd /blue/cancercenter-dept/hkates/Apps/new-atacreportR
 
 # Set RSTUDIO_PANDOC to help R find pandoc
 export RSTUDIO_PANDOC=$(which pandoc | xargs dirname)
 
 # Set output file name
-SEQID=$(grep "^--seqID" "$PARAMS_FILE" | sed 's/^--seqID[[:space:]]*['\''\"]\?\([^'\''\"]*\)['\''\"]\?.*/\1/')
+SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2)
 if [[ -z "$SEQID" ]]; then
   SEQID="ATAC_Report"
 fi
@@ -85,7 +88,7 @@ echo "Output file: $OUTPUT_FILE"
 
 # Render the report with parameters
 Rscript -e "
-.libPaths(c('/home/hkates/R/x86_64-pc-linux-gnu-library/4.5', '/usr/local/lib/R/site-library', '/usr/lib/R/site-library', '/usr/lib/R/library'))
+.libPaths(c('/blue/cancercenter-dept/shared/R/library/4.5/', '/usr/local/lib/R/site-library', '/usr/lib/R/site-library', '/usr/lib/R/library'))
 Sys.setenv(RSTUDIO_PANDOC='$RSTUDIO_PANDOC')
 rmarkdown::render(
   'atac_edgeR_report.Rmd',

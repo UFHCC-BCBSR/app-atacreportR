@@ -11,10 +11,10 @@ An interactive Shiny application for generating ATAC-seq differential accessibil
    cd new-atacreportR
    ```
 
-2. **Run the Shiny app:**
+2. **Run the shiny app in an rserver session:**
    ```bash
    module load R/4.5
-   R -e "shiny::runApp('app.R')"
+   rserver"
    ```
 
 3. **Use the web interface to:**

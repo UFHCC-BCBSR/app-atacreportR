@@ -381,22 +381,17 @@ if (exists("spikeIn_dds")) {
 ```{r pca_text, echo=FALSE,results='asis'}
 if (exists("spikeIn_dds")) {
   pca_header <- "Principal Component Analysis (PCA) plots are used here to visualize the overall structure of the data. Two PCA plots are shown:
-
-- **Raw Counts:** Variance between samples based on raw counts without any normalization applied.
-- **Spike-in Normalized Counts:** Variance after spike-in normalization, where normalization factors were calculated based on spike-in controls to adjust for systematic biases.
-
-The side-by-side comparison highlights the effect of spike-in normalization on sample clustering."
-  pca_combined_title <- "PCA Comparison: Raw vs Spike-in Normalized"
+- **Library Size Normalized (CPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
+- **Spike-in Normalized:** Variance after spike-in normalization, where normalization factors were calculated based on spike-in controls to adjust for both library size and compositional biases.
+The side-by-side comparison highlights the effect of spike-in normalization over basic CPM normalization on sample clustering."
+  pca_combined_title <- "PCA Comparison: CPM vs Spike-in Normalized"
 } else {
   pca_header <- "Principal Component Analysis (PCA) plots are used here to visualize the overall structure of the data. Two PCA plots are shown:
-
-- **Raw Counts:** Variance between samples based on raw counts without any normalization applied.
-- **TMM Normalized Counts:** Variance after TMM normalization, which adjusts for library size differences without external spike-in controls.
-
-The side-by-side comparison highlights the effect of TMM normalization on sample clustering."
-  pca_combined_title <- "PCA Comparison: Raw vs TMM Normalized"
+- **Library Size Normalized (CPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
+- **TMM Normalized:** Variance after TMM normalization, which adjusts for both library size differences and compositional biases between samples.
+The side-by-side comparison highlights the effect of TMM normalization over basic CPM normalization on sample clustering."
+  pca_combined_title <- "PCA Comparison: CPM vs TMM Normalized"
 }
-
 knitr::asis_output(pca_header)
 ```
 
@@ -404,18 +399,40 @@ knitr::asis_output(pca_header)
 library(plotly)
 
 # Create PCA plots
-pca_plot_raw <- plot_pca(dge_raw, title = "PCA - Raw Counts", show_legend = FALSE)
-pca_plot_norm <- plot_pca(dge, title = paste0("PCA - ", norm_method_title), show_legend = TRUE)
+pca_raw <- plot_pca(dge_raw, title = "PCA - CPM Normalized", show_legend = FALSE)
+pca_norm <- plot_pca(dge, title = paste0("PCA - ", norm_method_title), show_legend = TRUE)
 
-# Display plots side by side
+# Display plots side by side with individual titles
 subplot(
-  pca_plot_raw,
-  pca_plot_norm,
+  pca_raw$plot,
+  pca_norm$plot,
   nrows = 1,
   titleX = TRUE,
-  titleY = TRUE
+  titleY = TRUE,
+  margin = 0.08
 ) %>%
-layout(title = pca_combined_title)
+layout(
+  width = 1100,
+  height = 500,
+  annotations = list(
+    list(
+      text = pca_raw$title,
+      x = 0.25, y = 1.02,
+      xref = "paper", yref = "paper",
+      xanchor = "center", yanchor = "bottom",
+      showarrow = FALSE,
+      font = list(size = 14)
+    ),
+    list(
+      text = pca_norm$title,
+      x = 0.75, y = 1.02,
+      xref = "paper", yref = "paper",
+      xanchor = "center", yanchor = "bottom",
+      showarrow = FALSE,
+      font = list(size = 14)
+    )
+  )
+)
 ```
 
 ### Correlation Heatmaps

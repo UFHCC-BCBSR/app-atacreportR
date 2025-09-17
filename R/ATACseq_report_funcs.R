@@ -1043,8 +1043,12 @@ plot_pca <- function(dge, title, show_legend = TRUE) {
   # Extract log2 CPM values
   logcpm <- cpm(dge, log = TRUE)
   
+  # Check for and remove genes with non-finite values
+  finite_genes <- apply(logcpm, 1, function(x) all(is.finite(x)))
+  logcpm_clean <- logcpm[finite_genes, ]
+  
   # Perform PCA
-  pca_res <- prcomp(t(logcpm), center = TRUE, scale. = FALSE)
+  pca_res <- prcomp(t(logcpm_clean), center = TRUE, scale. = FALSE)
   
   # Get PC scores and variance explained
   scores <- as.data.frame(pca_res$x[, 1:2])
@@ -1058,18 +1062,38 @@ plot_pca <- function(dge, title, show_legend = TRUE) {
   # Create base plot
   fig <- plot_ly()
   
-  # Add ellipses for each group
+  # Add ellipses for each group (modified for small sample sizes)
   for (group in unique(scores$Group)) {
     group_data <- scores[scores$Group == group, ]
-    if (nrow(group_data) >= 3) {  # Need at least 3 points for ellipse
-      ellipse_coords <- car::dataEllipse(group_data$PC1, group_data$PC2,
-                                         levels = 0.68, plot.points = FALSE, draw = FALSE)
-      fig <- fig %>%
-        add_polygons(x = ellipse_coords[,1], y = ellipse_coords[,2],
-                     name = paste(group, "CI"), 
-                     opacity = 0.2, 
-                     showlegend = FALSE,
-                     hoverinfo = "skip")
+    if (nrow(group_data) >= 2) {  # Changed from 3 to 2
+      # Check if coordinates are finite before creating ellipse
+      if (all(is.finite(group_data$PC1)) && all(is.finite(group_data$PC2))) {
+        tryCatch({
+          if (nrow(group_data) >= 3) {
+            # Use dataEllipse for 3+ points
+            ellipse_coords <- car::dataEllipse(group_data$PC1, group_data$PC2,
+                                               levels = 0.68, plot.points = FALSE, draw = FALSE)
+          } else {
+            # For 2 points, create a simple hull around the points
+            hull_indices <- chull(group_data$PC1, group_data$PC2)
+            ellipse_coords <- as.matrix(group_data[hull_indices, c("PC1", "PC2")])
+            # Expand slightly to make it visible
+            center_x <- mean(ellipse_coords[,1])
+            center_y <- mean(ellipse_coords[,2])
+            ellipse_coords[,1] <- center_x + (ellipse_coords[,1] - center_x) * 1.5
+            ellipse_coords[,2] <- center_y + (ellipse_coords[,2] - center_y) * 1.5
+          }
+          
+          fig <- fig %>%
+            add_polygons(x = ellipse_coords[,1], y = ellipse_coords[,2],
+                         name = paste(group, "CI"),
+                         opacity = 0.2,
+                         showlegend = FALSE,
+                         hoverinfo = "skip")
+        }, error = function(e) {
+          message("Skipping ellipse for group ", group, ": ", e$message)
+        })
+      }
     }
   }
   
@@ -1081,15 +1105,16 @@ plot_pca <- function(dge, title, show_legend = TRUE) {
       color = ~Group,
       text = ~Sample,
       type = 'scatter', mode = 'markers',
-      marker = list(size = 8),
+      marker = list(size = 10),
       hovertemplate = "%{text}<br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>",
       showlegend = show_legend
     ) %>%
     layout(
-      title = title,
       xaxis = list(title = paste0("PC1 (", percentVar[1], "%)")),
-      yaxis = list(title = paste0("PC2 (", percentVar[2], "%)"))
+      yaxis = list(title = paste0("PC2 (", percentVar[2], "%)")),
+      width = 500,
+      height = 400
     )
   
-  return(fig)
+  return(list(plot = fig, title = title))  # Return both plot and title
 }

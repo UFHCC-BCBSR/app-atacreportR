@@ -878,48 +878,111 @@ generate_kegg_enrichment_plot_atac <- function(gene_lists, de_results_df, univer
 write_bigbed_de_peaks <- function(results_list, report_params, chrom_sizes_file, bedToBigBed_path) {
   public_web_dir <- "/orange/cancercenter-dept/web/public/BCB-SR/trackhubs"
   
+  # Function to find column names flexibly
+  find_column <- function(df, possible_names) {
+    for (name in possible_names) {
+      if (name %in% colnames(df)) return(name)
+    }
+    return(NULL)
+  }
+  
   for (contrast in names(results_list)) {
     contrast_clean <- gsub("\\.", "-", contrast)
     contrast_clean <- gsub("_", "-", contrast_clean)
     contrast_clean <- gsub("-vs-", "_vs_", contrast_clean)
     
+    # Extract group names from contrast
+    group_names <- strsplit(contrast, "_vs_")[[1]]
+    group1 <- group_names[1]
+    group2 <- if(length(group_names) > 1) group_names[2] else "baseline"
+    
     trackhub_dir <- file.path(public_web_dir, report_params$seqID, contrast_clean)
     if (!dir.exists(trackhub_dir)) dir.create(trackhub_dir, recursive = TRUE)
     
     result_table <- results_list[[contrast]]$table
-    de_table <- subset(result_table, FDR < 0.05 & abs(logFC) > 1 & logCPM > 2 & Gene.Name != "")
+    de_table <- subset(result_table, FDR < 0.05 & abs(logFC) > 1 & logCPM > 2)
     
-    # Read valid UCSC chromosome names
+    # Flexible column name detection
+    chr_col <- find_column(de_table, c("seqnames", "Chr", "chromosome", "chrom"))
+    start_col <- find_column(de_table, c("start", "Start", "chromStart"))
+    end_col <- find_column(de_table, c("end", "End", "chromEnd"))
+    strand_col <- find_column(de_table, c("strand", "Strand"))
+    gene_col <- find_column(de_table, c("Gene.Name", "gene_name", "GeneName", "symbol"))
+    interval_col <- find_column(de_table, c("interval", "peak_id", "PeakID", "name"))
+    
+    # Debug: Report found columns
+    cat("Column mapping for", contrast, ":\n")
+    cat("  Chromosome:", chr_col, "\n")
+    cat("  Start:", start_col, "\n") 
+    cat("  End:", end_col, "\n")
+    cat("  Strand:", strand_col, "\n")
+    cat("  Gene name:", gene_col, "\n")
+    cat("  Interval/Peak ID:", interval_col, "\n")
+    
+    # Check required columns exist
+    if (is.null(chr_col) || is.null(start_col) || is.null(end_col)) {
+      cat("ERROR: Missing required coordinate columns for", contrast, "\n")
+      next
+    }
+    
+    # Read valid UCSC chromosome names  
     valid_chroms <- read.table(chrom_sizes_file, header = FALSE, stringsAsFactors = FALSE)[[1]]
+    de_table <- de_table[de_table[[chr_col]] %in% valid_chroms, ]
     
-    # Filter to valid chromosomes
-    de_table <- de_table[de_table$Chr %in% valid_chroms, ]
+    if (nrow(de_table) == 0) {
+      cat("No valid peaks after chromosome filtering for", contrast, "\n")
+      next
+    }
     
-    if (nrow(de_table) == 0) next
+    cat("Number of DE peaks:", nrow(de_table), "\n")
     
-    # Safe fallback for missing names
-    peak_names <- ifelse(
-      is.na(de_table$Gene.Name) | de_table$Gene.Name == "",
-      if ("interval" %in% colnames(de_table)) {
-        de_table$interval
-      } else {
-        paste0(de_table$Chr, "_", de_table$Start, "_", de_table$End)
-      },
-      de_table$Gene.Name
+    # Create base names with fallback hierarchy
+    if (!is.null(gene_col)) {
+      base_names <- ifelse(
+        !is.na(de_table[[gene_col]]) & de_table[[gene_col]] != "",
+        de_table[[gene_col]],
+        if (!is.null(interval_col)) {
+          de_table[[interval_col]]
+        } else {
+          paste0(de_table[[chr_col]], ":", de_table[[start_col]], "-", de_table[[end_col]])
+        }
+      )
+    } else if (!is.null(interval_col)) {
+      base_names <- de_table[[interval_col]]
+    } else {
+      base_names <- paste0(de_table[[chr_col]], ":", de_table[[start_col]], "-", de_table[[end_col]])
+    }
+    
+    # Add direction annotation
+    direction_suffix <- ifelse(
+      de_table$logFC > 0,
+      paste0("_UP_IN_", toupper(group1)),
+      paste0("_UP_IN_", toupper(group2))
     )
     
-    # Construct BED dataframe
+    annotated_names <- paste0(base_names, direction_suffix)
+    
+    # Debug output
+    cat("Sample names:\n")
+    sample_idx <- 1:min(3, length(base_names))
+    for (i in sample_idx) {
+      cat(sprintf("  %s (logFC=%.2f) -> %s\n", 
+                  base_names[i], de_table$logFC[i], annotated_names[i]))
+    }
+    cat("\n")
+    
+    # Construct BED dataframe using flexible column names
     bed_df <- data.frame(
-      chrom      = de_table$Chr,
-      chromStart = de_table$Start - 1,  # BED is 0-based
-      chromEnd   = de_table$End,
-      name       = peak_names,
-      score      = if ("Peak.Score" %in% colnames(de_table)) as.integer(de_table$Peak.Score) else 0L,
-      strand     = de_table$Strand,
+      chrom      = de_table[[chr_col]],
+      chromStart = de_table[[start_col]] - 1,  # BED is 0-based
+      chromEnd   = de_table[[end_col]],
+      name       = annotated_names,
+      score      = 1000,  # Simplified for now
+      strand     = if (!is.null(strand_col)) de_table[[strand_col]] else ".",
       stringsAsFactors = FALSE
     )
     
-    bed_file <- file.path(trackhub_dir, paste0(contrast_clean, "_DA_peaks.bed"))
+    bed_file <- file.path(trackhub_dir, paste0(contrast_clean, "_DA_peaks_directional.bed"))
     write.table(bed_df, bed_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
     
     # Sort BED
@@ -927,7 +990,7 @@ write_bigbed_de_peaks <- function(results_list, report_params, chrom_sizes_file,
     system(sort_cmd)
     
     # Convert to BigBed
-    bb_file <- file.path(trackhub_dir, paste0(contrast_clean, "_DA_peaks.bb"))
+    bb_file <- file.path(trackhub_dir, paste0(contrast_clean, "_DA_peaks_directional.bb"))
     cmd <- sprintf("%s %s %s %s", bedToBigBed_path, bed_file, chrom_sizes_file, bb_file)
     system(cmd, intern = TRUE)
     

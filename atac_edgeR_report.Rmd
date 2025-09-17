@@ -802,34 +802,61 @@ create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
     return(NULL)
   }
   
-  # Create BED format data - handle both HOMER and ChIPseeker
+  # Extract group names from contrast for direction annotation
+  group_names <- strsplit(contrast_name, "_vs_")[[1]]
+  group1 <- group_names[1]
+  group2 <- if(length(group_names) > 1) group_names[2] else "baseline"
+  
+  # Detect column names flexibly (HOMER vs ChIPseeker compatibility)
+  chr_col <- if ("Chr" %in% colnames(sig_peaks)) "Chr" else "seqnames"
+  start_col <- if ("Start" %in% colnames(sig_peaks)) "Start" else "start"
+  end_col <- if ("End" %in% colnames(sig_peaks)) "End" else "end"
+  strand_col <- if ("Strand" %in% colnames(sig_peaks)) "Strand" else "strand"
+  
+  # Debug: show detected columns
+  cat("Detected columns for", contrast_name, ":\n")
+  cat("  Chr:", chr_col, "Start:", start_col, "End:", end_col, "Strand:", strand_col, "\n")
+  
+  # Create BED format data with directional annotations
   bed_data <- sig_peaks %>%
     mutate(
-      Chr = if ("Chr" %in% colnames(.)) {
-        as.character(Chr)
-      } else {
-        as.character(seqnames)  # Convert GenomicRanges seqnames to character
-      },
-      Start = if ("Start" %in% colnames(.)) Start else start,  
-      End = if ("End" %in% colnames(.)) End else end
+      Chr = as.character(.[[chr_col]]),
+      Start = .[[start_col]],
+      End = .[[end_col]],
+      Strand = if (strand_col %in% colnames(.)) .[[strand_col]] else ".",
+      # Create directional peak names
+      base_name = ifelse(!is.na(Gene.Name) & Gene.Name != "", Gene.Name, interval),
+      direction_suffix = ifelse(logFC > 0, 
+                               paste0("_MORE_ACC_IN_", toupper(group1)), 
+                               paste0("_MORE_ACC_IN_", toupper(group2))),
+      peak_name = paste0(base_name, direction_suffix)
     ) %>%
-    select(Chr, Start, End, interval, logFC, FDR) %>%
+    select(Chr, Start, End, peak_name, logFC, FDR, Strand) %>%
     mutate(
       Chr = ifelse(grepl("^chr", Chr), Chr, paste0("chr", Chr)),
-      score = pmin(1000, round(-log10(FDR) * 100)),
-      strand = "."
+      # Convert scores to integers (BED format requirement)
+      score = as.integer(ifelse(logFC > 0,
+                               pmin(1000, pmax(600, 600 + abs(logFC) * 100)), # Up: 600-1000
+                               pmin(500, pmax(200, 500 - abs(logFC) * 100)))), # Down: 200-500
+      strand = Strand  # Rename to standard lowercase for BED output
     ) %>%
-    select(Chr, Start, End, interval, score, strand)
-
+    select(Chr, Start, End, peak_name, score, strand)  # Final BED format
+  
+  # Debug output
+  cat("Sample directional peak names for", contrast_name, ":\n")
+  sample_names <- head(bed_data$peak_name, 3)
+  cat(paste(sample_names, collapse = "\n"), "\n")
+  cat("Sample scores:", head(bed_data$score, 3), "\n\n")
+  
   # Write BED file (unsorted)
   bed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks.bed"))
   write.table(bed_data, bed_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
-
+  
   # Sort with system command (bedToBigBed requires this exact sorting)
   sorted_bed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks_sorted.bed"))
-  system2("sort", args = c("-k1,1", "-k2,2n", bed_file), stdout = sorted_bed_file, 
+  system2("sort", args = c("-k1,1", "-k2,2n", bed_file), stdout = sorted_bed_file,
           env = c("LC_COLLATE=C"))
-
+  
   # Set up for BigBed conversion
   chrom_sizes_file <- if (organism == "mmu") "mm10.chrom.sizes" else "hg38.chrom.sizes"
   genome_alias <- if (organism == "mmu") "mm10" else "hg38"
@@ -852,7 +879,7 @@ create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
       stop("bedToBigBed not found")
     }
   }
-
+  
   # Convert to BigBed
   bigbed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks.bb"))
   result <- system2(bedToBigBed_path, args = c(sorted_bed_file, chrom_sizes_file, bigbed_file),

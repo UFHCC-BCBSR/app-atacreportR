@@ -1,8 +1,5 @@
 sample,fastq_1,fastq_2,replicate,single_end,control,mouse_id,sex,sample_id,Condition
 Control_REP1,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/42_S1_L007_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/42_S1_L007_R2_001.fastq.gz,1,0,NA,42,Male,ctrl_mouse_1,Control
 Control_REP2,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/43_S2_L007_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/43_S2_L007_R2_001.fastq.gz,2,0,NA,43,Male,ctrl_mouse_2,Control
-Control_REP3,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/46_S9_L007_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/46_S9_L007_R2_001.fastq.gz,3,0,NA,46,Male,ctrl_mouse_3,Control
 Heat_REP1,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/33_S3_L008_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/33_S3_L008_R2_001.fastq.gz,1,0,NA,33,Male,ctrl_mouse_4,Heat
 Heat_REP2,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/35_S4_L008_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/35_S4_L008_R2_001.fastq.gz,2,0,NA,35,Male,ctrl_mouse_5,Heat
-Heat_REP3,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/37_S1_L008_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/37_S1_L008_R2_001.fastq.gz,3,0,NA,37,Male,ctrl_mouse_6,Heat
-Heat_REP4,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/38_S5_L008_R1_001.fastq.gz,/orange/cancercenter-dept/clanton/NS4167/FASTQ_READS/38_S5_L008_R2_001.fastq.gz,4,0,NA,38,Male,ctrl_mouse_7,Heat

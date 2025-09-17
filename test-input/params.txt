@@ -2,9 +2,9 @@
 --report_title "Differential Accessibility Analysis"
 --organism "mmu"
 --annotation_db "org.Mm.eg.db"
-#--sample_sheet "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test_samples.csv"
---sample_sheet "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/samplesheet.valid.csv"
---contrasts "test-input/contrasts_test.txt"
+--sample_sheet "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/clanton-samples.csv"
+#--sample_sheet "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/samplesheet.valid.csv"
+--contrasts "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/contrasts_test.txt"
 # NEW: File specifications (use existing RData for now)
 --dds_file "/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/consensus_peaks.mLb.clN.dds.RData"
 --peak_files "Control_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP1.mLb.clN_peaks.broadPeak,Control_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP2.mLb.clN_peaks.broadPeak,Control_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Control_REP3.mLb.clN_peaks.broadPeak,Heat_REP1:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP1.mLb.clN_peaks.broadPeak,Heat_REP2:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP2.mLb.clN_peaks.broadPeak,Heat_REP3:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP3.mLb.clN_peaks.broadPeak,Heat_REP4:/blue/cancercenter-dept/privapps/data/atac/clanton/NS4167_Male_GoodSamples/Heat_REP4.mLb.clN_peaks.broadPeak"

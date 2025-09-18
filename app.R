@@ -4,7 +4,6 @@ library(shinydashboard)
 library(shinyFiles)
 library(shinyjs)
 library(DT)
-
 # UI
 ui <- fluidPage(
   useShinyjs(),
@@ -75,13 +74,11 @@ ui <- fluidPage(
       h1("ATAC-seq Analysis Parameter Generator", style = "margin: 0; font-size: 48px; font-weight: 300;"),
       p("Configure parameters for differential accessibility analysis", style = "margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;")
   ),
-  # Add this new section right after the title section and before authentication:
   
   # Load Existing Parameters section
   div(class = "step-section",
       h3("Load Existing Parameters (Optional)", style = "text-align: center; margin-bottom: 20px;"),
       p("Start from an existing params.txt file to make modifications:", style = "text-align: center; color: #6c757d;"),
-      
       # Option 1: Browse for existing params file
       div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
           h5("Browse HiPerGator for Existing params.txt"),
@@ -97,14 +94,12 @@ ui <- fluidPage(
             )
           )
       ),
-      
       # Option 2: Upload params file
       div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
           h5("Upload Existing params.txt"),
           fileInput("upload_existing_params", "Upload params.txt file", accept = ".txt"),
           uiOutput("uploaded_params_status")
       ),
-      
       # Load button and status
       div(style = "text-align: center; margin-top: 20px;",
           actionButton("load_existing_params", "Load Parameters", class = "btn-warning btn-lg", disabled = TRUE),
@@ -137,147 +132,335 @@ ui <- fluidPage(
       )
   ),
   
-  # Required Parameters
+  # Analysis Mode Selection with Info Buttons
   div(class = "step-section",
-      h2("Required Parameters", style = "text-align: center; margin-bottom: 30px;"),
-      
-      div(class = "param-group",
-          h4("Basic Configuration"),
-          fluidRow(
-            column(6, textInput("seqID", "Sequence ID (Project ID)", placeholder = "my-test")),
-            column(6, textInput("report_title", "Report Title", value = "Differential Accessibility Analysis"))
-          ),
-          fluidRow(
-            column(4, selectInput("organism", "Organism", choices = list("Mouse (mmu)" = "mmu", "Human (hsa)" = "hsa"), selected = "mmu")),
-            column(4, selectInput("annotation_db", "Annotation Database", choices = list("org.Mm.eg.db" = "org.Mm.eg.db", "org.Hs.eg.db" = "org.Hs.eg.db"), selected = "org.Mm.eg.db")),
-            column(4, textInput("hipergator_group", "HiPerGator Group", placeholder = "e.g., cancercenter-dept"))
-          ),
-          textInput("output_path", "Output Path", placeholder = "/blue/your-group/path/to/output"),
-	  textInput("user_email", "Email Address", 
-          placeholder = "your.email@ufl.edu (required for notification)")
-      ),
-	  div(class = "param-group",
-	      h4("Sample Sheet"),
-	      p("Choose how to provide your sample sheet CSV file:"),
-	      
-	      # Option 1: HiPerGator browse with download
-	      div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
-	          h5("Browse HiPerGator Files"),
-	          p("Select a file from HiPerGator. Use the download button if you want to edit it locally first."),
-	          conditionalPanel(
-	            condition = "output.authenticated",
-	            fluidRow(
-	              column(6, 
-	                     shinyFilesButton("browse_sample_sheet", "Browse HiPerGator", "Select CSV file", class = "btn-info", multiple = FALSE),
-	                     uiOutput("selected_sample_sheet_browse")
-	              ),
-	              column(6,
-	                     downloadButton("download_sample_sheet", "Download Selected File", class = "btn-secondary"),
-	                     tags$br(),
-	                     tags$small("Download to edit locally, then use Upload option below", style = "color: #6c757d;")
-	              )
-	            )
-	          ),
-	          conditionalPanel(
-	            condition = "!output.authenticated",
-	            div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
-	                tags$i(class = "fa fa-lock"), " Login below to browse HiPerGator files"
-	            )
-	          )
-	      ),
-	      
-	      # Option 2: Upload
-	      div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
-	          h5("Upload File"),
-	          p("Upload a sample sheet from your computer (including files you've downloaded and edited)."),
-	          fileInput("upload_sample_sheet", "Choose CSV File", accept = ".csv")
-	      ),
-	      
-	      # Show active selection
-	      uiOutput("active_sample_sheet_status")
-	  ),
-      
-      div(class = "param-group",
-          h4("Peak Files"),
-          p("Select multiple peak files (.broadPeak format). Files will be matched to samples by basename:"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
-            uiOutput("selected_peak_files")
-          ),
-          conditionalPanel(
-            condition = "!output.authenticated",
-            div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
-                tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
-            )
-          )
-      ),
-      
-      div(class = "param-group",
-          h4("BigWig Files"),
-          p("Select multiple BigWig files. Files will be matched to samples by basename:"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            shinyFilesButton("browse_bigwig_files", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
-            uiOutput("selected_bigwig_files")
-          ),
-          conditionalPanel(
-            condition = "!output.authenticated",
-            div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
-                tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
-            )
-          )
-      ),
-      
-      div(class = "param-group",
-          h4("Filtering Parameters"),
-          fluidRow(
-            column(6, numericInput("min_count_for_filtering", "Min Count for Filtering", value = 10, min = 0)),
-            column(6, numericInput("min_prop_for_filtering", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
-          )
+      h3("Analysis Mode", style = "text-align: center; margin-bottom: 20px;"),
+      fluidRow(
+        column(12,
+               div(
+                 radioButtons("analysis_mode", "Select your analysis workflow:",
+                              choices = c(
+                                "Prepare data only (generate DDS & annotations)" = "prepare_only",
+                                "Prepare data + run differential analysis (full workflow)" = "prepare_and_analyze",
+                                "Run differential analysis from existing data" = "analyze_only"
+                              ),
+                              selected = "prepare_and_analyze"
+                 ),
+                 # Info buttons positioned next to each option
+                 div(style = "margin-top: -120px; margin-left: 400px;",  # Adjust positioning as needed
+                     div(style = "margin-bottom: 8px;",
+                         actionButton("info_prepare_only", "",
+                                      icon = icon("info-circle"),
+                                      class = "btn-info btn-xs",
+                                      style = "padding: 2px 6px; font-size: 12px;",
+                                      title = "Click for more information")
+                     ),
+                     div(style = "margin-bottom: 8px;",
+                         actionButton("info_prepare_analyze", "",
+                                      icon = icon("info-circle"),
+                                      class = "btn-info btn-xs",
+                                      style = "padding: 2px 6px; font-size: 12px;",
+                                      title = "Click for more information")
+                     ),
+                     div(style = "margin-bottom: 8px;",
+                         actionButton("info_analyze_only", "",
+                                      icon = icon("info-circle"),
+                                      class = "btn-info btn-xs",
+                                      style = "padding: 2px 6px; font-size: 12px;",
+                                      title = "Click for more information")
+                     )
+                 )
+               )
+        )
       )
   ),
   
-  # Optional Parameters
+  # Conditional file inputs based on analysis mode
+  conditionalPanel(
+    condition = "input.analysis_mode != 'analyze_only'",
+    
+    # Required Parameters for data preparation modes
+    div(class = "step-section",
+        h2("Required Parameters", style = "text-align: center; margin-bottom: 30px;"),
+        
+        # Basic Configuration (always required)
+        div(class = "param-group",
+            h4("Basic Configuration"),
+            fluidRow(
+              column(6, textInput("seqID", "Sequence ID (Project ID)", placeholder = "my-test")),
+              column(6, textInput("report_title", "Report Title", value = "Differential Accessibility Analysis"))
+            ),
+            fluidRow(
+              column(4, selectInput("organism", "Organism", choices = list("Mouse (mmu)" = "mmu", "Human (hsa)" = "hsa"), selected = "mmu")),
+              column(4, selectInput("annotation_db", "Annotation Database", choices = list("org.Mm.eg.db" = "org.Mm.eg.db", "org.Hs.eg.db" = "org.Hs.eg.db"), selected = "org.Mm.eg.db")),
+              column(4, textInput("hipergator_group", "HiPerGator Group", placeholder = "e.g., cancercenter-dept"))
+            ),
+            textInput("output_path", "Output Path", placeholder = "/blue/your-group/path/to/output"),
+            textInput("user_email", "Email Address", placeholder = "your.email@ufl.edu (required for notification)")
+        ),
+        
+        # Sample Sheet (same for all modes)
+        div(class = "param-group",
+            h4("Sample Sheet"),
+            p("Choose how to provide your sample sheet CSV file:"),
+            div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
+                h5("Browse HiPerGator Files"),
+                p("Select a file from HiPerGator. Use the download button if you want to edit it locally first."),
+                conditionalPanel(
+                  condition = "output.authenticated",
+                  fluidRow(
+                    column(6,
+                           shinyFilesButton("browse_sample_sheet", "Browse HiPerGator", "Select CSV file", class = "btn-info", multiple = FALSE),
+                           uiOutput("selected_sample_sheet_browse")
+                    ),
+                    column(6,
+                           downloadButton("download_sample_sheet", "Download Selected File", class = "btn-secondary"),
+                           tags$br(),
+                           tags$small("Download to edit locally, then use Upload option below", style = "color: #6c757d;")
+                    )
+                  )
+                ),
+                conditionalPanel(
+                  condition = "!output.authenticated",
+                  div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                      tags$i(class = "fa fa-lock"), " Login below to browse HiPerGator files"
+                  )
+                )
+            ),
+            div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
+                h5("Upload File"),
+                p("Upload a sample sheet from your computer (including files you've downloaded and edited)."),
+                fileInput("upload_sample_sheet", "Choose CSV File", accept = ".csv")
+            ),
+            uiOutput("active_sample_sheet_status")
+        ),
+        
+        # Peak Files (required for data preparation)
+        div(class = "param-group",
+            h4("Peak Files"),
+            p("Select multiple peak files (.broadPeak format). Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_peak_files")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
+        
+        # BAM Files (required for data preparation)  
+        div(class = "param-group",
+            h4("BAM Files"),
+            p("Select multiple BAM files for read counting. Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_bam_files", "Browse BAM Files", "Select multiple BAM files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_bam_files")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
+        
+        # BigWig Files (required for all modes)
+        div(class = "param-group",
+            h4("BigWig Files"),
+            p("Select multiple BigWig files. Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_bigwig_files", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_bigwig_files")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
+        
+        # Contrasts (required only for prepare_and_analyze mode)
+        conditionalPanel(
+          condition = "input.analysis_mode == 'prepare_and_analyze'",
+          div(class = "param-group",
+              h4("Contrasts", tags$span("*", style = "color: red;")),
+              p("Specify contrasts either by uploading a file OR entering text (required for differential analysis):"),
+              conditionalPanel(
+                condition = "output.authenticated",
+                shinyFilesButton("browse_contrasts", "Browse Contrasts File", "Select contrasts file", class = "btn-info", multiple = FALSE),
+                uiOutput("selected_contrasts")
+              ),
+              textInput("contrasts_text", "OR Enter Contrasts (comma-separated)", placeholder = "group1_vs_group2,treatment_vs_control")
+          )
+        ),
+        
+        # Filtering Parameters (required for all modes)
+        div(class = "param-group",
+            h4("Filtering Parameters"),
+            fluidRow(
+              column(6, numericInput("min_count_for_filtering", "Min Count for Filtering", value = 10, min = 0)),
+              column(6, numericInput("min_prop_for_filtering", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
+            )
+        )
+    )
+  ),
+  
+  # Conditional inputs for "analyze_only" mode
+  conditionalPanel(
+    condition = "input.analysis_mode == 'analyze_only'",
+    
+    # Required Parameters for analysis-only mode
+    div(class = "step-section",
+        h2("Required Parameters", style = "text-align: center; margin-bottom: 30px;"),
+        
+        # Basic Configuration (duplicate with different IDs)
+        div(class = "param-group",
+            h4("Basic Configuration"),
+            fluidRow(
+              column(6, textInput("seqID_analyze", "Sequence ID (Project ID)", placeholder = "my-test")),
+              column(6, textInput("report_title_analyze", "Report Title", value = "Differential Accessibility Analysis"))
+            ),
+            fluidRow(
+              column(4, selectInput("organism_analyze", "Organism", choices = list("Mouse (mmu)" = "mmu", "Human (hsa)" = "hsa"), selected = "mmu")),
+              column(4, selectInput("annotation_db_analyze", "Annotation Database", choices = list("org.Mm.eg.db" = "org.Mm.eg.db", "org.Hs.eg.db" = "org.Hs.eg.db"), selected = "org.Mm.eg.db")),
+              column(4, textInput("hipergator_group_analyze", "HiPerGator Group", placeholder = "e.g., cancercenter-dept"))
+            ),
+            textInput("output_path_analyze", "Output Path", placeholder = "/blue/your-group/path/to/output"),
+            textInput("user_email_analyze", "Email Address", placeholder = "your.email@ufl.edu (required for notification)")
+        ),
+        
+        # Existing Data Files (required for analyze_only)
+        div(class = "param-group",
+            h4("Existing Data Files"),
+            
+            div(style = "border: 1px solid #28a745; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8fff9;",
+                h5("DDS Object", tags$span("*", style = "color: red;")),
+                p("Select your existing DDS (.RData) file from previous analysis:"),
+                conditionalPanel(
+                  condition = "output.authenticated",
+                  shinyFilesButton("browse_existing_dds", "Browse DDS File", "Select DDS RData file", class = "btn-success", multiple = FALSE),
+                  uiOutput("selected_existing_dds")
+                ),
+                conditionalPanel(
+                  condition = "!output.authenticated",
+                  div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                      tags$i(class = "fa fa-lock"), " Login below to browse HiPerGator files"
+                  )
+                )
+            ),
+            
+            div(style = "border: 1px solid #17a2b8; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8fdff;",
+                h5("Peak Annotation File", tags$span("(Optional)", style = "color: #6c757d; font-size: 0.8em;")),
+                p("Select annotated consensus peaks file. If not provided, annotation will be generated automatically:"),
+                conditionalPanel(
+                  condition = "output.authenticated",
+                  shinyFilesButton("browse_existing_annotation", "Browse Annotation File", "Select annotation file", class = "btn-info", multiple = FALSE),
+                  uiOutput("selected_existing_annotation")
+                )
+            )
+        ),
+        
+        # Sample Sheet (same inputs, different IDs to avoid conflicts)
+        div(class = "param-group",
+            h4("Sample Sheet"),
+            p("Provide sample sheet for metadata (should match samples in your DDS object):"),
+            div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
+                h5("Browse HiPerGator Files"),
+                conditionalPanel(
+                  condition = "output.authenticated",
+                  fluidRow(
+                    column(6,
+                           shinyFilesButton("browse_sample_sheet_analyze", "Browse HiPerGator", "Select CSV file", class = "btn-info", multiple = FALSE),
+                           uiOutput("selected_sample_sheet_browse_analyze")
+                    ),
+                    column(6,
+                           downloadButton("download_sample_sheet_analyze", "Download Selected File", class = "btn-secondary"),
+                           tags$br(),
+                           tags$small("Download to edit locally, then use Upload option below", style = "color: #6c757d;")
+                    )
+                  )
+                )
+            ),
+            div(style = "border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px;",
+                h5("Upload File"),
+                fileInput("upload_sample_sheet_analyze", "Choose CSV File", accept = ".csv")
+            ),
+            uiOutput("active_sample_sheet_status_analyze")
+        ),
+        
+        # BigWig Files (required for all modes)
+        div(class = "param-group",
+            h4("BigWig Files"),
+            p("Select multiple BigWig files. Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_bigwig_files_analyze", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_bigwig_files_analyze")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
+        
+        # Contrasts (required for analysis)
+        div(class = "param-group",
+            h4("Contrasts", tags$span("*", style = "color: red;")),
+            p("Specify contrasts for differential analysis:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_contrasts_analyze", "Browse Contrasts File", "Select contrasts file", class = "btn-info", multiple = FALSE),
+              uiOutput("selected_contrasts_analyze")
+            ),
+            textInput("contrasts_text_analyze", "OR Enter Contrasts (comma-separated)", placeholder = "group1_vs_group2,treatment_vs_control")
+        ),
+        
+        # Filtering Parameters (required for all modes)
+        div(class = "param-group",
+            h4("Filtering Parameters"),
+            fluidRow(
+              column(6, numericInput("min_count_for_filtering_analyze", "Min Count for Filtering", value = 10, min = 0)),
+              column(6, numericInput("min_prop_for_filtering_analyze", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
+            )
+        )
+    )
+  ),
+  
+  # Optional Parameters (for all modes)
+  # Optional Parameters (for all modes)
   div(class = "step-section",
       h2("Optional Parameters", style = "text-align: center; margin-bottom: 30px;"),
       
-      div(class = "param-group",
-          h4("Contrasts"),
-          p("Specify contrasts either by uploading a file OR entering text:"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            shinyFilesButton("browse_contrasts", "Browse Contrasts File", "Select contrasts file", class = "btn-info", multiple = FALSE),
-            uiOutput("selected_contrasts")
-          ),
-          textInput("contrasts_text", "OR Enter Contrasts (comma-separated)", placeholder = "group1_vs_group2,treatment_vs_control")
+      # Contrasts for prepare_only mode (optional)
+      conditionalPanel(
+        condition = "input.analysis_mode == 'prepare_only'",
+        div(class = "param-group",
+            h4("Contrasts", tags$span("(Optional)", style = "color: #6c757d; font-size: 0.8em;")),
+            p("You can specify contrasts now or add them later when running differential analysis:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              shinyFilesButton("browse_contrasts_optional", "Browse Contrasts File", "Select contrasts file", class = "btn-secondary", multiple = FALSE),
+              uiOutput("selected_contrasts_optional")
+            ),
+            textInput("contrasts_text_optional", "OR Enter Contrasts (comma-separated)", placeholder = "group1_vs_group2,treatment_vs_control")
+        )
       ),
       
+      # QC Files (optional for all modes) - REMOVED Peak Annotation section
       div(class = "param-group",
-          h4("Analysis Files (Either DDS file OR BAM files required)"),
+          h4("Quality Control Files"),
           conditionalPanel(
             condition = "output.authenticated",
             div(
-              h5("DDS File (if available):"),
-              shinyFilesButton("browse_dds_file", "Browse DDS File", "Select DDS RData file", class = "btn-info", multiple = FALSE),
-              uiOutput("selected_dds_file"),
-              br(),
-              h5("BAM Files (alternative to DDS):"),
-              shinyFilesButton("browse_bam_files", "Browse BAM Files", "Select multiple BAM files", class = "btn-info", multiple = TRUE),
-              uiOutput("selected_bam_files")
-            )
-          )
-      ),
-      
-      div(class = "param-group",
-          h4("Additional Analysis Files"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            div(
-              h5("Peak Annotation:"),
-              shinyFilesButton("browse_peak_annotation", "Browse Peak Annotation", "Select annotation file", class = "btn-info", multiple = FALSE),
-              uiOutput("selected_peak_annotation"),
-              br(),
               h5("QC Flagstat Directory:"),
               shinyDirButton("browse_qc_flagstat_dir", "Browse QC Flagstat Directory", "Select directory", class = "btn-info"),
               uiOutput("selected_qc_flagstat_dir"),
@@ -289,20 +472,19 @@ ui <- fluidPage(
           )
       ),
       
+      # URLs (Optional for all modes)
       div(class = "param-group",
           h4("URLs (Optional)"),
           textInput("raw_seq_URL", "Raw Sequencing Data URL", placeholder = "https://..."),
           textInput("multiqc_url", "MultiQC Results URL", placeholder = "https://...")
       )
   ),
-  # Add this new section after the Optional Parameters section and before the Validation section:
   
-  # **Report Metadata**
+  # Report Metadata
   div(class = "step-section",
       h2("Report Metadata (Optional)", style = "text-align: center; margin-bottom: 30px;"),
-      p("These fields are used to populate the report header and summary. All are optional.", 
+      p("These fields are used to populate the report header and summary. All are optional.",
         style = "text-align: center; color: #6c757d; margin-bottom: 20px;"),
-      
       div(class = "param-group",
           h4("Project Information"),
           fluidRow(
@@ -315,10 +497,9 @@ ui <- fluidPage(
           ),
           textInput("Project_Title", "Project Title", placeholder = "ATAC-seq analysis of...")
       ),
-      
       div(class = "param-group",
           h4("Study Details"),
-          textAreaInput("Study_Summary", "Study Summary", 
+          textAreaInput("Study_Summary", "Study Summary",
                         placeholder = "Brief description of the study objectives and design...",
                         rows = 3),
           fluidRow(
@@ -326,7 +507,6 @@ ui <- fluidPage(
             column(6, textInput("Analysis_Goals", "Analysis Goal(s)", placeholder = "Differential accessibility, pathway analysis, etc."))
           )
       ),
-      
       div(class = "param-group",
           h4("Report Credits"),
           fluidRow(
@@ -337,8 +517,6 @@ ui <- fluidPage(
   ),
   
   # Validation and Generation
-  # Replace the existing "Generate Parameters" section with this:
-  
   div(class = "step-section",
       h2("Generate Parameters", style = "text-align: center; margin-bottom: 30px;"),
       div(style = "text-align: center;",
@@ -355,7 +533,7 @@ ui <- fluidPage(
       br(),
       verbatimTextOutput("params_preview")
   )
-)
+) 
 
 # Server
 server <- function(input, output, session) {
@@ -504,6 +682,155 @@ server <- function(input, output, session) {
       values$selected_files$sample_sheet <- values$selected_files$sample_sheet_browse
       showNotification("HiPerGator file selected", type = "message")
     }
+  })
+  
+  # Server-side observers for info buttons
+  
+  # Info for "Prepare data only" mode
+  observeEvent(input$info_prepare_only, {
+    showModal(modalDialog(
+      title = tags$div(
+        icon("database"), 
+        "Prepare Data Only Mode",
+        style = "color: #0066cc;"
+      ),
+      
+      tags$div(
+        tags$h5("When to use this mode:", style = "color: #333; margin-top: 0;"),
+        tags$ul(
+          tags$li("You have BED files (peak calls) and BAM files for your samples"),
+          tags$li("You have run a peak caller but don't have consensus peaks yet"),
+          tags$li("You need consensus peak merging and quantification (featureCounts)"),
+          tags$li("You want to combine peaks from multiple datasets or analyses"),
+          tags$li("You ran peak calling as stand-alone (not part of an integrated pipeline like nf-core/atacseq)")
+        ),
+        
+        tags$h5("What this mode does:", style = "color: #333; margin-top: 15px;"),
+        tags$ul(
+          tags$li("Creates consensus peaks across all your samples"),
+          tags$li("Counts reads in consensus peaks using featureCounts"), 
+          tags$li("Generates peak annotations (or uses existing if provided)"),
+          tags$li("Creates a DDS (DESeq2) object ready for differential analysis"),
+          tags$li(tags$strong("Saves intermediate files for future use"))
+        ),
+        
+        tags$h5("Output files you'll get:", style = "color: #333; margin-top: 15px;"),
+        tags$ul(
+          tags$li(tags$code("dds.RData"), " - DESeq2 object with count matrix"),
+          tags$li(tags$code("consensus-peaks.txt"), " - Merged peak coordinates"),
+          tags$li(tags$code("annotated.consensus-peaks.txt"), " - Peaks with gene annotations")
+        ),
+        
+        tags$div(
+          tags$em("Note: Peak annotation will be generated automatically if not provided."),
+          style = "color: #666; font-size: 0.9em; margin-top: 10px;"
+        )
+      ),
+      
+      footer = modalButton("Close"),
+      size = "l",
+      easyClose = TRUE
+    ))
+  })
+  
+  # Info for "Prepare + analyze" mode  
+  observeEvent(input$info_prepare_analyze, {
+    showModal(modalDialog(
+      title = tags$div(
+        icon("cogs"), 
+        "Full Workflow Mode", 
+        style = "color: #28a745;"
+      ),
+      
+      tags$div(
+        tags$h5("When to use this mode:", style = "color: #333; margin-top: 0;"),
+        tags$ul(
+          tags$li("Same as 'Prepare Data Only' but you're ready to run analysis immediately"),
+          tags$li("You want both data preparation AND differential analysis in one go"),
+          tags$li("You want to generate a complete analysis report")
+        ),
+        
+        tags$h5("What this mode does:", style = "color: #333; margin-top: 15px;"),
+        tags$div(
+          tags$strong("Everything from 'Prepare Data Only' mode, PLUS:"),
+          tags$ul(
+            tags$li("Runs differential accessibility analysis"),
+            tags$li("Generates comprehensive HTML report with plots and tables"),
+            tags$li("Creates visualization files and track hub data"),
+            tags$li("Performs pathway enrichment analysis (GO/KEGG)")
+          )
+        ),
+        
+        tags$h5("Output files you'll get:", style = "color: #333; margin-top: 15px;"),
+        tags$ul(
+          tags$li(tags$strong("All intermediate files"), " (same as 'Prepare Data Only')"),
+          tags$li(tags$code("analysis_report.html"), " - Complete analysis report"),
+          tags$li("Differential analysis results tables"),
+          tags$li("Track hub files for genome browser viewing")
+        ),
+        
+        tags$div(
+          tags$strong("Advantage: "), 
+          "You get intermediate files saved so you can run additional analyses later with different parameters, contrasts, or sample subsets.",
+          style = "color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px;"
+        )
+      ),
+      
+      footer = modalButton("Close"),
+      size = "l", 
+      easyClose = TRUE
+    ))
+  })
+  
+  # Info for "Analyze only" mode
+  observeEvent(input$info_analyze_only, {
+    showModal(modalDialog(
+      title = tags$div(
+        icon("chart-line"), 
+        "Analysis from Existing Data Mode",
+        style = "color: #dc3545;"
+      ),
+      
+      tags$div(
+        tags$h5("When to use this mode:", style = "color: #333; margin-top: 0;"),
+        tags$ul(
+          tags$li("You already ran 'Prepare Data Only' or 'Full Workflow' mode previously"),
+          tags$li("You have output from nf-core/atacseq or another integrated pipeline"), 
+          tags$li("You have a DDS object and annotated consensus peaks from another source"),
+          tags$li("You want to re-run analysis with different parameters or contrasts"),
+          tags$li("You want to analyze a subset of samples from a previous analysis")
+        ),
+        
+        tags$h5("What you need to provide:", style = "color: #333; margin-top: 15px;"),
+        tags$ul(
+          tags$li(tags$code("dds.RData"), " - DESeq2 object with count matrix and sample metadata"),
+          tags$li(tags$code("annotated.consensus-peaks.txt"), " - Peak annotations (optional - will generate if missing)")
+        ),
+        
+        tags$h5("What this mode does:", style = "color: #333; margin-top: 15px;"),
+        tags$ul(
+          tags$li("Loads your existing DDS object and peak annotations"),
+          tags$li("Runs differential accessibility analysis"), 
+          tags$li("Generates comprehensive HTML report"),
+          tags$li("Creates all visualization and output files")
+        ),
+        
+        tags$div(
+          tags$strong("Typical workflow: "), 
+          "Run 'Prepare Data Only' once, then use 'Analysis from Existing Data' for different parameter combinations or sample subsets.",
+          style = "color: #004085; background-color: #cce5ff; padding: 10px; border-radius: 5px; margin-top: 10px;"
+        ),
+        
+        tags$div(
+          tags$em("Note: If peak annotation file is missing or not provided, annotation will be generated automatically."),
+          style = "color: #666; font-size: 0.9em; margin-top: 10px;"
+        )
+      ),
+      
+      footer = modalButton("Close"),
+      size = "l",
+      easyClose = TRUE
+    ))
   })
   
   # Display selected HiPerGator file

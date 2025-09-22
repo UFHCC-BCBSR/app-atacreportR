@@ -8,7 +8,7 @@
 #SBATCH --output=logs/rserver_%j.log
 #SBATCH --error=logs/rserver_%j.error
 #SBATCH --account=cancercenter-dept
-#SBATCH --qos=cancercenter-dept
+#SBATCH --qos=cancercenter-dept-b
 
 # Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title"
 # NOTE: Run this script from the directory containing atac_edgeR_report.Rmd

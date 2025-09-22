@@ -9,65 +9,97 @@ ui <- fluidPage(
   useShinyjs(),
   tags$head(
     tags$style(HTML("
-      body { background-color: #f4f4f4; }
-      .title-section { text-align: center; padding: 30px 0; background-color: #2c3e50; color: white; }
-      .step-section { background-color: white; margin: 20px; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .btn-primary { background-color: #3498db; border-color: #3498db; }
-      .btn-success { background-color: #27ae60; border-color: #27ae60; }
-      .btn-danger { background-color: #e74c3c; border-color: #e74c3c; }
-      .login-box {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-      .auth-status {
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 15px;
-      }
-      .auth-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
-      .auth-needed { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
-      .selected-file {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 8px 12px;
-        margin-top: 8px;
-        font-family: monospace;
-        font-size: 11px;
-        color: #495057;
-        max-height: 60px;
-        overflow-y: auto;
-      }
-      .param-group {
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
-        background-color: #f8f9fa;
-      }
-      .param-group h4 {
-        margin-top: 0;
-        color: #495057;
-        border-bottom: 1px solid #dee2e6;
-        padding-bottom: 8px;
-      }
-      .validation-message {
-        padding: 10px;
-        border-radius: 4px;
-        margin: 10px 0;
-      }
-      .validation-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
-      .validation-error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
-      .validation-warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
-      .shinyDirectories .btn[title='Create new folder'] { display: none !important; }
-      .shinyDirectories .fa-plus { display: none !important; }
-      .shinyDirectories .fa-edit { display: none !important; }
-      button#sF-btn-textChoice { display: none !important; }
-      .glyphicon-pencil { display: none !important; }
-    "))
+  body { background-color: #f4f4f4; }
+  .title-section { 
+    text-align: center; 
+    padding: 15px 0;  /* Reduced from 30px */
+    background-color: #2c3e50; 
+    color: white; 
+  }
+  .step-section { 
+    background-color: white; 
+    margin: 10px;     /* Reduced from 20px */
+    padding: 15px;    /* Reduced from 30px */
+    border-radius: 8px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+  }
+  .step-section h2, .step-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;  /* Add this for consistent spacing */
+  }
+  .btn-primary { background-color: #3498db; border-color: #3498db; }
+  .btn-success { background-color: #27ae60; border-color: #27ae60; }
+  .btn-danger { background-color: #e74c3c; border-color: #e74c3c; }
+  .login-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;    /* Reduced from 20px */
+    margin-bottom: 15px;  /* Reduced from 20px */
+  }
+  .auth-status {
+    padding: 8px;     /* Reduced from 10px */
+    border-radius: 4px;
+    margin-bottom: 10px;  /* Reduced from 15px */
+  }
+  .auth-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+  .auth-needed { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+  .selected-file {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 6px 10px;  /* Reduced from 8px 12px */
+    margin-top: 6px;    /* Reduced from 8px */
+    font-family: monospace;
+    font-size: 11px;
+    color: #495057;
+    max-height: 60px;
+    overflow-y: auto;
+  }
+  .param-group {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px;      /* Reduced from 15px */
+    margin-bottom: 10px; /* Reduced from 20px */
+    background-color: #f8f9fa;
+  }
+  .param-group h4 {
+    margin-top: 0;
+    margin-bottom: 8px;  /* Reduced from default */
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 5px; /* Reduced from 8px */
+  }
+  .param-group h5 {
+    margin-top: 0;
+    margin-bottom: 8px;  /* Add this for h5 elements */
+  }
+  .param-group p {
+    margin-bottom: 8px;  /* Reduce paragraph spacing */
+  }
+  .form-group {
+    margin-bottom: 10px; /* Reduce form group spacing */
+  }
+  .validation-message {
+    padding: 8px;       /* Reduced from 10px */
+    border-radius: 4px;
+    margin: 8px 0;      /* Reduced from 10px */
+  }
+  .validation-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+  .validation-error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+  .validation-warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+  .shinyDirectories .btn[title='Create new folder'] { display: none !important; }
+  .shinyDirectories .fa-plus { display: none !important; }
+  .shinyDirectories .fa-edit { display: none !important; }
+  button#sF-btn-textChoice { display: none !important; }
+  .glyphicon-pencil { display: none !important; }
+  
+  /* Additional compact spacing */
+  .radio { margin-bottom: 5px; }  /* Reduce radio button spacing */
+  .checkbox { margin-bottom: 5px; } /* Reduce checkbox spacing */
+  .well { padding: 10px; }  /* Make wells more compact */
+  br + br { display: none; }  /* Remove double line breaks */
+"))
   ),
   
   div(class = "title-section",
@@ -595,6 +627,7 @@ server <- function(input, output, session) {
   })
   
   # Login handler
+  # Login handler
   observeEvent(input$login_btn, {
     req(input$group_name, input$group_password)
     if (input$group_name %in% names(group_passwords) &&
@@ -607,7 +640,9 @@ server <- function(input, output, session) {
       if (dir.exists(group_path)) {
         group_volumes <- setNames(group_path, values$current_group)
         
-        # Initialize all file browsers
+        # Initialize all file browsers for BOTH modes
+        
+        # Original mode buttons:
         shinyFileChoose(input, "browse_sample_sheet", roots = group_volumes, session = session, filetypes = c("", "csv"))
         shinyFileChoose(input, "browse_existing_params", roots = group_volumes, session = session, filetypes = c("", "txt"))
         shinyFileChoose(input, "browse_peak_files", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"))
@@ -618,6 +653,13 @@ server <- function(input, output, session) {
         shinyFileChoose(input, "browse_peak_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"))
         shinyDirChoose(input, "browse_qc_flagstat_dir", roots = group_volumes, session = session)
         shinyFileChoose(input, "browse_qc_frip_file", roots = group_volumes, session = session, filetypes = c("", "txt"))
+        
+        # ADD THESE - Analyze-only mode buttons:
+        shinyFileChoose(input, "browse_existing_dds", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"))
+        shinyFileChoose(input, "browse_existing_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"))
+        shinyFileChoose(input, "browse_sample_sheet_analyze", roots = group_volumes, session = session, filetypes = c("", "csv"))
+        shinyFileChoose(input, "browse_bigwig_files_analyze", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"))
+        shinyFileChoose(input, "browse_contrasts_analyze", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"))
       }
       showNotification("Login successful! HiPerGator file browsing enabled.", type = "message")
     } else {
@@ -681,6 +723,11 @@ server <- function(input, output, session) {
   setup_file_browser("browse_peak_annotation", "peak_annotation")
   setup_file_browser("browse_qc_flagstat_dir", "qc_flagstat_dir")
   setup_file_browser("browse_qc_frip_file", "qc_frip_file")
+  setup_file_browser("browse_existing_dds", "existing_dds")
+  setup_file_browser("browse_existing_annotation", "existing_annotation") 
+  setup_file_browser("browse_sample_sheet_analyze", "sample_sheet_analyze")
+  setup_file_browser("browse_bigwig_files_analyze", "bigwig_files_analyze", multiple = TRUE)
+  setup_file_browser("browse_contrasts_analyze", "contrasts_analyze")
   
   # File display outputs
   # Sample sheet handling - add this to your server function
@@ -878,6 +925,70 @@ server <- function(input, output, session) {
       }
     }
   )
+  
+  # Add these output handlers for analyze-only mode
+  output$selected_existing_dds <- renderUI({
+    if (!is.null(values$selected_files$existing_dds)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$existing_dds),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$existing_dds)
+      )
+    }
+  })
+  
+  output$selected_existing_annotation <- renderUI({
+    if (!is.null(values$selected_files$existing_annotation)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$existing_annotation),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$existing_annotation)
+      )
+    }
+  })
+  
+  output$selected_sample_sheet_browse_analyze <- renderUI({
+    if (!is.null(values$selected_files$sample_sheet_analyze)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$sample_sheet_analyze),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$sample_sheet_analyze)
+      )
+    }
+  })
+  
+  output$selected_bigwig_files_analyze <- renderUI({
+    if (!is.null(values$selected_files$bigwig_files_analyze)) {
+      files <- values$selected_files$bigwig_files_analyze
+      div(class = "selected-file",
+          strong(paste("Selected", length(files), "BigWig files:")),
+          tags$br(),
+          paste(basename(files), collapse = ", ")
+      )
+    }
+  })
+  
+  output$selected_contrasts_analyze <- renderUI({
+    if (!is.null(values$selected_files$contrasts_analyze)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$contrasts_analyze),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$contrasts_analyze)
+      )
+    }
+  })
+  
+  output$active_sample_sheet_status_analyze <- renderUI({
+    # Similar logic to the original, but for analyze mode
+    if (!is.null(values$selected_files$sample_sheet_analyze)) {
+      div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 15px;",
+          tags$i(class = "fa fa-check-circle", style = "color: #155724;"),
+          strong(" Active: "), "Using HiPerGator file",
+          br(),
+          strong("File: "), basename(values$selected_files$sample_sheet_analyze)
+      )
+    }
+  })
   
   # Option 2: Upload
   observeEvent(input$upload_sample_sheet, {
@@ -1288,53 +1399,117 @@ server <- function(input, output, session) {
   })
   
   # Validation function
-  # Updated validation function that handles loaded params
+  # Updated validation function that handles different modes
   validate_parameters <- function() {
     messages <- c()
     
-    # Check required fields
-    if (is.null(input$seqID) || input$seqID == "") {
+    # Determine which input fields to check based on analysis mode
+    if (input$analysis_mode == "analyze_only") {
+      # Use analyze-only field names
+      seqID_field <- input$seqID_analyze
+      hipergator_group_field <- input$hipergator_group_analyze
+      output_path_field <- input$output_path_analyze
+      user_email_field <- input$user_email_analyze
+      min_count_field <- input$min_count_for_filtering_analyze
+      min_prop_field <- input$min_prop_for_filtering_analyze
+      contrasts_text_field <- input$contrasts_text_analyze
+      
+      # Check for analyze-only specific requirements
+      if (is.null(values$selected_files$existing_dds)) {
+        messages <- c(messages, "❌ DDS file is required for analyze-only mode")
+      }
+      
+      # Check file keys for analyze-only mode
+      sample_sheet_key <- "sample_sheet_analyze"
+      bigwig_files_key <- "bigwig_files_analyze"
+      contrasts_key <- "contrasts_analyze"
+      
+    } else {
+      # Use original field names for other modes
+      seqID_field <- input$seqID
+      hipergator_group_field <- input$hipergator_group
+      output_path_field <- input$output_path
+      user_email_field <- input$user_email
+      min_count_field <- input$min_count_for_filtering
+      min_prop_field <- input$min_prop_for_filtering
+      contrasts_text_field <- input$contrasts_text
+      
+      # Check for data preparation requirements
+      if (is.null(values$selected_files$peak_files)) {
+        messages <- c(messages, "❌ Peak files are required")
+      }
+      
+      # Check that either DDS file OR BAM files are provided for non-analyze modes
+      has_dds <- !is.null(values$selected_files$dds_file)
+      has_bam <- !is.null(values$selected_files$bam_files)
+      if (!has_dds && !has_bam) {
+        messages <- c(messages, "❌ Either DDS file OR BAM files must be provided")
+      }
+      
+      # Use original file keys
+      sample_sheet_key <- "sample_sheet"
+      bigwig_files_key <- "bigwig_files"
+      contrasts_key <- "contrasts"
+    }
+    
+    # Check required fields (common logic)
+    if (is.null(seqID_field) || seqID_field == "") {
       messages <- c(messages, "❌ Sequence ID is required")
     }
-    if (is.null(input$hipergator_group) || input$hipergator_group == "") {
+    if (is.null(hipergator_group_field) || hipergator_group_field == "") {
       messages <- c(messages, "❌ HiPerGator Group is required")
     }
-    if (is.null(input$output_path) || input$output_path == "") {
+    if (is.null(output_path_field) || output_path_field == "") {
       messages <- c(messages, "❌ Output path is required")
     }
-    if (is.null(values$selected_files$sample_sheet)) {
+    if (is.null(user_email_field) || user_email_field == "") {
+      messages <- c(messages, "❌ User email is required")
+    }
+    
+    # Check sample sheet
+    if (is.null(values$selected_files[[sample_sheet_key]])) {
       messages <- c(messages, "❌ Sample sheet is required")
     }
-    if (is.null(values$selected_files$peak_files)) {
-      messages <- c(messages, "❌ Peak files are required")
-    }
-    if (is.null(values$selected_files$bigwig_files)) {
+    
+    # Check BigWig files
+    if (is.null(values$selected_files[[bigwig_files_key]])) {
       messages <- c(messages, "❌ BigWig files are required")
     }
     
-    # Check that either DDS file OR BAM files are provided
-    has_dds <- !is.null(values$selected_files$dds_file)
-    has_bam <- !is.null(values$selected_files$bam_files)
-    if (!has_dds && !has_bam) {
-      messages <- c(messages, "❌ Either DDS file OR BAM files must be provided")
-    }
-    
     # Validate contrasts
-    has_contrasts_file <- !is.null(values$selected_files$contrasts)
-    has_contrasts_text <- !is.null(input$contrasts_text) && input$contrasts_text != ""
+    has_contrasts_file <- !is.null(values$selected_files[[contrasts_key]])
+    has_contrasts_text <- !is.null(contrasts_text_field) && contrasts_text_field != ""
     if (!has_contrasts_file && !has_contrasts_text) {
       messages <- c(messages, "⚠️ No contrasts specified - analysis will run without differential testing")
     }
     
     # Validate file matching if sample sheet is available
-    if (!is.null(values$selected_files$sample_sheet)) {
+    if (!is.null(values$selected_files[[sample_sheet_key]])) {
       tryCatch({
-        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        sample_df <- read.csv(values$selected_files[[sample_sheet_key]], stringsAsFactors = FALSE)
         if (!("sample" %in% colnames(sample_df))) {
           messages <- c(messages, "❌ Sample sheet must have a 'sample' column")
         } else {
-          # Check if peak files can be matched to samples
-          if (!is.null(values$selected_files$peak_files)) {
+          # Check BigWig files matching
+          if (!is.null(values$selected_files[[bigwig_files_key]])) {
+            bigwig_basenames <- basename(values$selected_files[[bigwig_files_key]])
+            matched_bigwigs <- 0
+            for (sample in sample_df$sample) {
+              if (any(grepl(sample, bigwig_basenames, fixed = TRUE))) {
+                matched_bigwigs <- matched_bigwigs + 1
+              }
+            }
+            if (matched_bigwigs == 0) {
+              messages <- c(messages, "❌ No BigWig files could be matched to sample names")
+            } else if (matched_bigwigs < nrow(sample_df)) {
+              messages <- c(messages, paste("⚠️ Only", matched_bigwigs, "of", nrow(sample_df), "samples matched to BigWig files"))
+            } else {
+              messages <- c(messages, paste("✅", matched_bigwigs, "samples successfully matched to BigWig files"))
+            }
+          }
+          
+          # Check peak files matching (only for non-analyze modes)
+          if (input$analysis_mode != "analyze_only" && !is.null(values$selected_files$peak_files)) {
             peak_basenames <- basename(values$selected_files$peak_files)
             matched_peaks <- 0
             for (sample in sample_df$sample) {
@@ -1348,24 +1523,6 @@ server <- function(input, output, session) {
               messages <- c(messages, paste("⚠️ Only", matched_peaks, "of", nrow(sample_df), "samples matched to peak files"))
             } else {
               messages <- c(messages, paste("✅", matched_peaks, "samples successfully matched to peak files"))
-            }
-          }
-          
-          # Check BigWig files
-          if (!is.null(values$selected_files$bigwig_files)) {
-            bigwig_basenames <- basename(values$selected_files$bigwig_files)
-            matched_bigwigs <- 0
-            for (sample in sample_df$sample) {
-              if (any(grepl(sample, bigwig_basenames, fixed = TRUE))) {
-                matched_bigwigs <- matched_bigwigs + 1
-              }
-            }
-            if (matched_bigwigs == 0) {
-              messages <- c(messages, "❌ No BigWig files could be matched to sample names")
-            } else if (matched_bigwigs < nrow(sample_df)) {
-              messages <- c(messages, paste("⚠️ Only", matched_bigwigs, "of", nrow(sample_df), "samples matched to BigWig files"))
-            } else {
-              messages <- c(messages, paste("✅", matched_bigwigs, "samples successfully matched to BigWig files"))
             }
           }
         }
@@ -1404,22 +1561,65 @@ server <- function(input, output, session) {
   })
   
   # Generate params.txt
+  # Updated generate params function that handles different modes
   generate_params_content <- function() {
     lines <- c()
     
-    # Required parameters
-    lines <- c(lines, paste("--seqID", shQuote(input$seqID)))
-    lines <- c(lines, paste("--report_title", shQuote(input$report_title)))
-    lines <- c(lines, paste("--organism", shQuote(input$organism)))
-    lines <- c(lines, paste("--annotation_db", shQuote(input$annotation_db)))
-    lines <- c(lines, paste("--hipergator-group", shQuote(input$hipergator_group)))
-    lines <- c(lines, paste("--output-path", shQuote(input$output_path)))
-    lines <- c(lines, paste("--user_email", shQuote(input$user_email)))
-    lines <- c(lines, paste("--min_count_for_filtering", input$min_count_for_filtering))
-    lines <- c(lines, paste("--min_prop_for_filtering", input$min_prop_for_filtering))
-    lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files$sample_sheet)))
+    # Determine which input fields to use based on analysis mode
+    if (input$analysis_mode == "analyze_only") {
+      # Use analyze-only field names
+      seqID_field <- input$seqID_analyze
+      report_title_field <- input$report_title_analyze
+      organism_field <- input$organism_analyze
+      annotation_db_field <- input$annotation_db_analyze
+      hipergator_group_field <- input$hipergator_group_analyze
+      output_path_field <- input$output_path_analyze
+      user_email_field <- input$user_email_analyze
+      min_count_field <- input$min_count_for_filtering_analyze
+      min_prop_field <- input$min_prop_for_filtering_analyze
+      contrasts_text_field <- input$contrasts_text_analyze
+      
+      # Use analyze-only file keys
+      sample_sheet_key <- "sample_sheet_analyze"
+      bigwig_files_key <- "bigwig_files_analyze"
+      contrasts_key <- "contrasts_analyze"
+      
+    } else {
+      # Use original field names
+      seqID_field <- input$seqID
+      report_title_field <- input$report_title
+      organism_field <- input$organism
+      annotation_db_field <- input$annotation_db
+      hipergator_group_field <- input$hipergator_group
+      output_path_field <- input$output_path
+      user_email_field <- input$user_email
+      min_count_field <- input$min_count_for_filtering
+      min_prop_field <- input$min_prop_for_filtering
+      contrasts_text_field <- input$contrasts_text
+      
+      # Use original file keys
+      sample_sheet_key <- "sample_sheet"
+      bigwig_files_key <- "bigwig_files"
+      contrasts_key <- "contrasts"
+    }
     
-    # Report metadata parameters (only add if not empty)
+    # Generate parameters using the appropriate field values
+    lines <- c(lines, paste("--seqID", shQuote(seqID_field)))
+    lines <- c(lines, paste("--report_title", shQuote(report_title_field)))
+    lines <- c(lines, paste("--organism", shQuote(organism_field)))
+    lines <- c(lines, paste("--annotation_db", shQuote(annotation_db_field)))
+    lines <- c(lines, paste("--hipergator-group", shQuote(hipergator_group_field)))
+    lines <- c(lines, paste("--output-path", shQuote(output_path_field)))
+    lines <- c(lines, paste("--user_email", shQuote(user_email_field)))
+    lines <- c(lines, paste("--min_count_for_filtering", min_count_field))
+    lines <- c(lines, paste("--min_prop_for_filtering", min_prop_field))
+    
+    # Sample sheet
+    if (!is.null(values$selected_files[[sample_sheet_key]])) {
+      lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files[[sample_sheet_key]])))
+    }
+    
+    # Report metadata parameters (only add if not empty) - these are the same for all modes
     if (!is.null(input$PI) && input$PI != "") {
       lines <- c(lines, paste("--PI", shQuote(input$PI)))
     }
@@ -1450,33 +1650,12 @@ server <- function(input, output, session) {
     if (!is.null(input$Report_Reviewed_By) && input$Report_Reviewed_By != "") {
       lines <- c(lines, paste("--Report_Reviewed_By", shQuote(input$Report_Reviewed_By)))
     }
-    # Required parameters
-    lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files$sample_sheet)))
     
-    # Format peak files with sample matching
-    if (!is.null(values$selected_files$peak_files)) {
-      peak_pairs <- c()
-      sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
-      
-      for (peak_file in values$selected_files$peak_files) {
-        peak_basename <- basename(peak_file)
-        # Find matching sample
-        for (sample in sample_df$sample) {
-          if (grepl(sample, peak_basename, fixed = TRUE)) {
-            peak_pairs <- c(peak_pairs, paste0(sample, ":", peak_file))
-            break
-          }
-        }
-      }
-      lines <- c(lines, paste("--peak_files", shQuote(paste(peak_pairs, collapse = ","))))
-    }
-    
-    # Format BigWig files with sample matching
-    if (!is.null(values$selected_files$bigwig_files)) {
+    # BigWig files with sample matching
+    if (!is.null(values$selected_files[[bigwig_files_key]])) {
       bigwig_pairs <- c()
-      sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
-      
-      for (bigwig_file in values$selected_files$bigwig_files) {
+      sample_df <- read.csv(values$selected_files[[sample_sheet_key]], stringsAsFactors = FALSE)
+      for (bigwig_file in values$selected_files[[bigwig_files_key]]) {
         bigwig_basename <- basename(bigwig_file)
         # Find matching sample
         for (sample in sample_df$sample) {
@@ -1490,89 +1669,108 @@ server <- function(input, output, session) {
     }
     
     # Contrasts
-    if (!is.null(values$selected_files$contrasts)) {
-      lines <- c(lines, paste("--contrasts", shQuote(values$selected_files$contrasts)))
-    } else if (!is.null(input$contrasts_text) && input$contrasts_text != "") {
-      lines <- c(lines, paste("--contrasts", shQuote(input$contrasts_text)))
+    if (!is.null(values$selected_files[[contrasts_key]])) {
+      lines <- c(lines, paste("--contrasts", shQuote(values$selected_files[[contrasts_key]])))
+    } else if (!is.null(contrasts_text_field) && contrasts_text_field != "") {
+      lines <- c(lines, paste("--contrasts", shQuote(contrasts_text_field)))
     }
     
-    # Optional file parameters
-    if (!is.null(values$selected_files$dds_file)) {
-      lines <- c(lines, paste("--dds_file", shQuote(values$selected_files$dds_file)))
-    }
-    
-    if (!is.null(values$selected_files$bam_files)) {
-      bam_pairs <- c()
-      sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
-      
-      for (bam_file in values$selected_files$bam_files) {
-        bam_basename <- basename(bam_file)
-        for (sample in sample_df$sample) {
-          if (grepl(sample, bam_basename, fixed = TRUE)) {
-            bam_pairs <- c(bam_pairs, paste0(sample, ":", bam_file))
-            break
+    # Mode-specific files
+    if (input$analysis_mode == "analyze_only") {
+      # Add existing DDS file for analyze-only mode
+      if (!is.null(values$selected_files$existing_dds)) {
+        lines <- c(lines, paste("--dds_file", shQuote(values$selected_files$existing_dds)))
+      }
+      # Add existing annotation if provided
+      if (!is.null(values$selected_files$existing_annotation)) {
+        lines <- c(lines, paste("--peak_annotation", shQuote(values$selected_files$existing_annotation)))
+      }
+    } else {
+      # Add peak files and BAM files for other modes
+      if (!is.null(values$selected_files$peak_files)) {
+        peak_pairs <- c()
+        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        for (peak_file in values$selected_files$peak_files) {
+          peak_basename <- basename(peak_file)
+          for (sample in sample_df$sample) {
+            if (grepl(sample, peak_basename, fixed = TRUE)) {
+              peak_pairs <- c(peak_pairs, paste0(sample, ":", peak_file))
+              break
+            }
           }
         }
+        lines <- c(lines, paste("--peak_files", shQuote(paste(peak_pairs, collapse = ","))))
       }
-      lines <- c(lines, paste("--bam_files", shQuote(paste(bam_pairs, collapse = ","))))
+      
+      if (!is.null(values$selected_files$bam_files)) {
+        bam_pairs <- c()
+        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        for (bam_file in values$selected_files$bam_files) {
+          bam_basename <- basename(bam_file)
+          for (sample in sample_df$sample) {
+            if (grepl(sample, bam_basename, fixed = TRUE)) {
+              bam_pairs <- c(bam_pairs, paste0(sample, ":", bam_file))
+              break
+            }
+          }
+        }
+        lines <- c(lines, paste("--bam_files", shQuote(paste(bam_pairs, collapse = ","))))
+      }
     }
     
-    if (!is.null(values$selected_files$peak_annotation)) {
-      lines <- c(lines, paste("--peak_annotation", shQuote(values$selected_files$peak_annotation)))
-    }
-    
+    # Optional QC files (same for all modes)
     if (!is.null(values$selected_files$qc_flagstat_dir)) {
       lines <- c(lines, paste("--qc_flagstat_dir", shQuote(values$selected_files$qc_flagstat_dir)))
     }
-    
     if (!is.null(values$selected_files$qc_frip_file)) {
       lines <- c(lines, paste("--qc_frip_file", shQuote(values$selected_files$qc_frip_file)))
     }
     
-    # Single value parameters
-    lines <- c(lines, paste("--min_count_for_filtering", input$min_count_for_filtering))
-    lines <- c(lines, paste("--min_prop_for_filtering", input$min_prop_for_filtering))
-    lines <- c(lines, paste("--seqID", shQuote(input$seqID)))
-    lines <- c(lines, paste("--hipergator-group", shQuote(input$hipergator_group)))
-    lines <- c(lines, paste("--output-path", shQuote(input$output_path)))
-    lines <- c(lines, paste("--report_title", shQuote(input$report_title)))
-    lines <- c(lines, paste("--organism", shQuote(input$organism)))
-    lines <- c(lines, paste("--annotation_db", shQuote(input$annotation_db)))
-    
+    # Optional URLs (same for all modes)
     if (!is.null(input$raw_seq_URL) && input$raw_seq_URL != "") {
       lines <- c(lines, paste("--raw_seq_URL", shQuote(input$raw_seq_URL)))
     }
-    
     if (!is.null(input$multiqc_url) && input$multiqc_url != "") {
       lines <- c(lines, paste("--multiqc_url", shQuote(input$multiqc_url)))
     }
     
     return(lines)
   }
-  
   # Generate params file
   observeEvent(input$generate_params, {
     req(values$params_valid)
     tryCatch({
+      # Get the correct output path based on analysis mode
+      output_path <- if (input$analysis_mode == "analyze_only") {
+        input$output_path_analyze
+      } else {
+        input$output_path
+      }
+      
+      # Get the correct seqID based on analysis mode
+      seqID <- if (input$analysis_mode == "analyze_only") {
+        input$seqID_analyze
+      } else {
+        input$seqID
+      }
+      
       # Ensure output directory exists
-      if (!dir.exists(input$output_path)) {
-        dir.create(input$output_path, recursive = TRUE, showWarnings = FALSE)
+      if (!dir.exists(output_path)) {
+        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
       }
       
       # Generate params file directly to HiPerGator storage (NOT tempdir!)
-      params_file <- file.path(input$output_path, paste0(input$seqID, "_params.txt"))
+      params_file <- file.path(output_path, paste0(seqID, "_params.txt"))
       params_content <- generate_params_content()
       writeLines(params_content, params_file)
       
       # Store the PERMANENT path, not tempdir
       values$params_file_path <- params_file
       values$params_generated <- TRUE
-      
       shinyjs::enable("submit_job")
       shinyjs::enable("download_params")
       
       showNotification(paste("Parameters file saved to HiPerGator:", params_file), type = "message")
-      
     }, error = function(e) {
       showNotification(paste("Error generating params file:", e$message), type = "error")
     })
@@ -1586,10 +1784,15 @@ server <- function(input, output, session) {
     }
   })
   
-  # Download params.txt file
+  # Download params.txt file - Updated for different modes
   output$download_params <- downloadHandler(
     filename = function() {
-      paste0(input$seqID, "_params.txt")
+      seqID <- if (input$analysis_mode == "analyze_only") {
+        input$seqID_analyze
+      } else {
+        input$seqID
+      }
+      paste0(seqID, "_params.txt")
     },
     content = function(file) {
       if (values$params_generated && !is.null(values$params_file_path)) {
@@ -1610,7 +1813,7 @@ server <- function(input, output, session) {
   })
   
   # Submit job - CORRECTED VERSION  
-  # Submit job - SIMPLIFIED VERSION with command display
+  # Submit job - Updated to handle different analysis modes
   observeEvent(input$submit_job, {
     req(values$params_valid)
     tryCatch({
@@ -1619,21 +1822,28 @@ server <- function(input, output, session) {
         # Using loaded params file
         params <- parse_params_file(values$existing_params_file)
         seqID <- params$seqID %||% "unknown"
-        output_path <- params[["output-path"]] %||% params[["output_path"]] %||% input$output_path
+        output_path <- params[["output-path"]] %||% params[["output_path"]] %||% 
+          (if (input$analysis_mode == "analyze_only") input$output_path_analyze else input$output_path)
         report_title <- params$report_title %||% "ATAC-seq Analysis Report"
-        
         # Copy to output directory with standard name
         final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
         file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
       } else {
-        # Using generated params
+        # Using generated params - get the correct field values based on mode
         req(values$params_generated)
-        seqID <- input$seqID
-        output_path <- input$output_path
-        report_title <- input$report_title
-        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         
+        if (input$analysis_mode == "analyze_only") {
+          seqID <- input$seqID_analyze
+          output_path <- input$output_path_analyze
+          report_title <- input$report_title_analyze
+        } else {
+          seqID <- input$seqID
+          output_path <- input$output_path
+          report_title <- input$report_title
+        }
+        
+        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         if (!file.exists(final_params_path)) {
           stop("Generated params file not found at expected location: ", final_params_path)
         }
@@ -1644,7 +1854,7 @@ server <- function(input, output, session) {
       
       # Build the command arguments
       sbatch_args <- c("render-report-with-params.sbatch",
-                       "--params-file", final_params_path,  # Use full path instead of basename
+                       "--params-file", final_params_path,  # Use full path
                        "--title", shQuote(report_title))
       
       # Create the full command string for display
@@ -1663,12 +1873,12 @@ server <- function(input, output, session) {
           job_id <- gsub("Submitted batch job ", "", job_id)
           showNotification(paste("SLURM job submitted successfully! Job ID:", job_id,
                                  "\nCommand:", full_command,
-                                 "\nParams file:", final_params_path), 
+                                 "\nParams file:", final_params_path),
                            type = "message", duration = 15)
         } else {
           showNotification(paste("SLURM job submitted successfully!",
                                  "\nCommand:", full_command,
-                                 "\nParams file:", final_params_path), 
+                                 "\nParams file:", final_params_path),
                            type = "message")
         }
       } else {
@@ -1676,7 +1886,6 @@ server <- function(input, output, session) {
                            "\nCommand attempted:", full_command)
         showNotification(error_msg, type = "error", duration = 15)
       }
-      
     }, error = function(e) {
       showNotification(paste("Error submitting SLURM job:", e$message), type = "error")
     })

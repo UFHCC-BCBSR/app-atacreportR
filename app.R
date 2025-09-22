@@ -436,8 +436,9 @@ ui <- fluidPage(
   ),
   
   # Optional Parameters (for all modes)
-  # Optional Parameters (for all modes)
-  div(class = "step-section",
+  conditionalPanel(
+    condition = "input.analysis_mode != 'prepare_only'",
+ div(class = "step-section",
       h2("Optional Parameters", style = "text-align: center; margin-bottom: 30px;"),
       
       # Contrasts for prepare_only mode (optional)
@@ -456,20 +457,24 @@ ui <- fluidPage(
       ),
       
       # QC Files (optional for all modes) - REMOVED Peak Annotation section
-      div(class = "param-group",
-          h4("Quality Control Files"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            div(
-              h5("QC Flagstat Directory:"),
-              shinyDirButton("browse_qc_flagstat_dir", "Browse QC Flagstat Directory", "Select directory", class = "btn-info"),
-              uiOutput("selected_qc_flagstat_dir"),
-              br(),
-              h5("QC FRIP File:"),
-              shinyFilesButton("browse_qc_frip_file", "Browse QC FRIP File", "Select FRIP file", class = "btn-info", multiple = FALSE),
-              uiOutput("selected_qc_frip_file")
+      # QC Files (hide in prepare_only)
+      conditionalPanel(
+        condition = "input.analysis_mode != 'prepare_only'",
+        div(class = "param-group",
+            h4("Quality Control Files"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              div(
+                h5("QC Flagstat Directory:"),
+                shinyDirButton("browse_qc_flagstat_dir", "Browse QC Flagstat Directory", "Select directory", class = "btn-info"),
+                uiOutput("selected_qc_flagstat_dir"),
+                br(),
+                h5("QC FRIP File:"),
+                shinyFilesButton("browse_qc_frip_file", "Browse QC FRIP File", "Select FRIP file", class = "btn-info", multiple = FALSE),
+                uiOutput("selected_qc_frip_file")
+              )
             )
-          )
+        )
       ),
       
       # URLs (Optional for all modes)
@@ -478,10 +483,12 @@ ui <- fluidPage(
           textInput("raw_seq_URL", "Raw Sequencing Data URL", placeholder = "https://..."),
           textInput("multiqc_url", "MultiQC Results URL", placeholder = "https://...")
       )
-  ),
+  )),
   
   # Report Metadata
-  div(class = "step-section",
+ conditionalPanel(
+   condition = "input.analysis_mode != 'prepare_only'",
+div(class = "step-section",
       h2("Report Metadata (Optional)", style = "text-align: center; margin-bottom: 30px;"),
       p("These fields are used to populate the report header and summary. All are optional.",
         style = "text-align: center; color: #6c757d; margin-bottom: 20px;"),
@@ -514,9 +521,11 @@ ui <- fluidPage(
             column(6, textInput("Report_Reviewed_By", "Report Reviewed By", placeholder = "Reviewer Name"))
           )
       )
-  ),
+  )),
   
   # Validation and Generation
+  conditionalPanel(
+    condition = "input.analysis_mode != 'prepare_only'",
   div(class = "step-section",
       h2("Generate Parameters", style = "text-align: center; margin-bottom: 30px;"),
       div(style = "text-align: center;",
@@ -532,7 +541,17 @@ ui <- fluidPage(
       uiOutput("validation_status"),
       br(),
       verbatimTextOutput("params_preview")
+  )),
+  conditionalPanel(
+    condition = "input.analysis_mode == 'prepare_only'",
+    div(class = "param-group",
+        h3("Data preparation outputs"),
+        actionButton("run_prepare_only", "Run Data Preparation", class = "btn-success"),
+        verbatimTextOutput("prepare_only_log"),
+        uiOutput("prepare_only_files")
+    )
   )
+  
 ) 
 
 # Server
@@ -1532,7 +1551,6 @@ server <- function(input, output, session) {
   }
   
   # Generate params file
-  # Generate params file - CORRECTED VERSION
   observeEvent(input$generate_params, {
     req(values$params_valid)
     tryCatch({
@@ -1567,8 +1585,6 @@ server <- function(input, output, session) {
       "Click 'Validate Parameters' then 'Generate params.txt' to see preview"
     }
   })
-  
-  # Add this download handler to your server:
   
   # Download params.txt file
   output$download_params <- downloadHandler(
@@ -1665,7 +1681,6 @@ server <- function(input, output, session) {
       showNotification(paste("Error submitting SLURM job:", e$message), type = "error")
     })
   })
-  # Add this observer to detect when user makes changes after loading:
   observe({
     # List of inputs to watch for changes
     input_list <- list(input$seqID, input$report_title, input$organism, input$annotation_db,
@@ -1689,6 +1704,92 @@ server <- function(input, output, session) {
       shinyjs::disable("submit_job")
     }
   })
+  observeEvent(input$run_prepare_only, {
+    tryCatch({
+      # Format peak files as comma-separated sample:path pairs
+      peak_files_string <- NULL
+      if (!is.null(values$selected_files$peak_files) && !is.null(values$selected_files$sample_sheet)) {
+        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        peak_pairs <- c()
+        for (peak_file in values$selected_files$peak_files) {
+          peak_basename <- basename(peak_file)
+          # Find matching sample
+          for (sample in sample_df$sample) {
+            if (grepl(sample, peak_basename, fixed = TRUE)) {
+              peak_pairs <- c(peak_pairs, paste0(sample, ":", peak_file))
+              break
+            }
+          }
+        }
+        peak_files_string <- paste(peak_pairs, collapse = ",")
+      }
+      
+      # Format BAM files similarly
+      bam_files_string <- NULL
+      if (!is.null(values$selected_files$bam_files) && !is.null(values$selected_files$sample_sheet)) {
+        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        bam_pairs <- c()
+        for (bam_file in values$selected_files$bam_files) {
+          bam_basename <- basename(bam_file)
+          for (sample in sample_df$sample) {
+            if (grepl(sample, bam_basename, fixed = TRUE)) {
+              bam_pairs <- c(bam_pairs, paste0(sample, ":", bam_file))
+              break
+            }
+          }
+        }
+        bam_files_string <- paste(bam_pairs, collapse = ",")
+      }
+      
+      # Format BigWig files similarly  
+      bigwig_files_string <- NULL
+      if (!is.null(values$selected_files$bigwig_files) && !is.null(values$selected_files$sample_sheet)) {
+        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        bigwig_pairs <- c()
+        for (bigwig_file in values$selected_files$bigwig_files) {
+          bigwig_basename <- basename(bigwig_file)
+          for (sample in sample_df$sample) {
+            if (grepl(sample, bigwig_basename, fixed = TRUE)) {
+              bigwig_pairs <- c(bigwig_pairs, paste0(sample, ":", bigwig_file))
+              break
+            }
+          }
+        }
+        bigwig_files_string <- paste(bigwig_pairs, collapse = ",")
+      }
+      
+      # Create params in the format expected by prepare_analysis_data
+      params <- list(
+        seqID        = input$seqID,
+        organism     = input$organism,
+        sample_sheet = values$selected_files$sample_sheet,
+        peak_files   = peak_files_string,    # Now formatted as string
+        bam_files    = bam_files_string,     # Now formatted as string
+        bigwig_files = bigwig_files_string,  # Now formatted as string
+        output_path  = input$output_path,
+        dds_file     = NULL                  # Explicitly set to NULL for prepare-only mode
+      )
+      
+      res <- prepare_analysis_data(params)
+      
+      # Show paths of saved objects
+      output$prepare_only_files <- renderUI({
+        tagList(
+          h4("Files created:"),
+          tags$ul(
+            tags$li(file.path(input$output_path, paste0(input$seqID, ".dds.RData"))),
+            tags$li(file.path(input$output_path, paste0(input$seqID, ".consensus-peaks.txt"))),
+            tags$li(file.path(input$output_path, paste0(input$seqID, ".annotated.consensus-peaks.txt")))
+          )
+        )
+      })
+      output$prepare_only_log <- renderText("Data preparation completed successfully.")
+      
+    }, error = function(e) {
+      output$prepare_only_log <- renderText(paste("Error:", e$message))
+    })
+  })
+  
 }
 
 shinyApp(ui = ui, server = server)

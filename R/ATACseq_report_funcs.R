@@ -330,6 +330,22 @@ generate_enrichment_plot_atac <- function(gene_lists, de_results_df, universe_en
     )
   }))
   
+  if (is.null(data) || nrow(data) == 0) {
+    message_plot <- ggplot() +
+      annotate("text", x = 1, y = 1, label = paste0("No significant genes found for enrichment\n(", ont_category, ")"), size = 6, hjust = 0.5) +
+      theme_void() +
+      ggtitle(paste("GO Term Enrichment (", ont_category, ")", sep = ""))
+    
+    interactive_plot <- ggplotly(message_plot)
+    static_plot <- message_plot
+    
+    return(list(
+      interactive_plot = interactive_plot,
+      static_plot = static_plot,
+      go_results = NULL
+    ))
+  }
+  
   # Ensure no duplicates and valid formatting
   data <- data %>%
     distinct(Entrez, Contrast, .keep_all = TRUE)

@@ -103,8 +103,8 @@ ui <- fluidPage(
   ),
   
   div(class = "title-section",
-      h1("ATAC-seq Analysis Parameter Generator", style = "margin: 0; font-size: 48px; font-weight: 300;"),
-      p("Configure parameters for differential accessibility analysis", style = "margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;")
+      h1("Peak Reporter", style = "margin: 0; font-size: 48px; font-weight: 300;"),
+      p("Configure, run, and report a differential analysis of peak data (CUT&RUN, ChIP-seq, ATAC-seq, and more)", style = "margin: 10px 0 0 0; font-size: 14px; opacity: 0.8;")
   ),
   
   # Load Existing Parameters section
@@ -1098,9 +1098,10 @@ server <- function(input, output, session) {
   }
   `%||%` <- function(x, y) if (is.null(x)) y else x
   # Updated load existing parameters function with better debugging
+  # Updated load existing parameters function with cross-mode compatibility
   observeEvent(input$load_existing_params, {
     req(values$existing_params_file)
-    # Add this right after req(values$existing_params_file) in your load observer:
+    
     cat("DEBUG: About to read file:", values$existing_params_file, "\n")
     raw_lines <- readLines(values$existing_params_file)
     cat("DEBUG: Raw file has", length(raw_lines), "lines\n")
@@ -1119,47 +1120,70 @@ server <- function(input, output, session) {
       cat("DEBUG: Parsed", length(params), "parameters\n")
       cat("DEBUG: Parameter names:", paste(names(params), collapse = ", "), "\n")
       
-      # Test one parameter update
+      # Parse and store file lists function (moved up so it's available)
+      parse_file_pairs <- function(param_value) {
+        if (is.null(param_value) || param_value == "") return(NULL)
+        param_value <- gsub('^["\']|["\']$', '', param_value)
+        pairs <- strsplit(param_value, ",")[[1]]
+        sapply(pairs, function(x) {
+          x <- gsub('^["\']|["\']$', '', trimws(x))
+          parts <- strsplit(x, ":")[[1]]
+          if (length(parts) >= 2) parts[2] else x
+        })
+      }
+      
+      # ===== BASIC CONFIGURATION - Populate BOTH modes =====
       if ("seqID" %in% names(params)) {
         cat("DEBUG: Updating seqID to:", params$seqID, "\n")
         updateTextInput(session, "seqID", value = params$seqID)
+        updateTextInput(session, "seqID_analyze", value = params$seqID)
       }
       
-      # Populate ALL UI text inputs
       if ("report_title" %in% names(params)) {
         cat("DEBUG: Updating report_title to:", params$report_title, "\n")
         updateTextInput(session, "report_title", value = params$report_title)
+        updateTextInput(session, "report_title_analyze", value = params$report_title)
       }
+      
       if ("organism" %in% names(params)) {
         updateSelectInput(session, "organism", selected = params$organism)
+        updateSelectInput(session, "organism_analyze", selected = params$organism)
       }
+      
       if ("annotation_db" %in% names(params)) {
         updateSelectInput(session, "annotation_db", selected = params$annotation_db)
+        updateSelectInput(session, "annotation_db_analyze", selected = params$annotation_db)
       }
       
       hipergator_group_key <- if ("hipergator-group" %in% names(params)) "hipergator-group" else "hipergator_group"
       if (hipergator_group_key %in% names(params)) {
         updateTextInput(session, "hipergator_group", value = params[[hipergator_group_key]])
+        updateTextInput(session, "hipergator_group_analyze", value = params[[hipergator_group_key]])
       }
       
       output_path_key <- if ("output-path" %in% names(params)) "output-path" else "output_path"
       if (output_path_key %in% names(params)) {
         updateTextInput(session, "output_path", value = params[[output_path_key]])
+        updateTextInput(session, "output_path_analyze", value = params[[output_path_key]])
       }
       
       if ("user_email" %in% names(params)) {
         updateTextInput(session, "user_email", value = params$user_email)
+        updateTextInput(session, "user_email_analyze", value = params$user_email)
       }
       
-      # Populate numeric inputs
+      # ===== NUMERIC INPUTS - Populate BOTH modes =====
       if ("min_count_for_filtering" %in% names(params)) {
         updateNumericInput(session, "min_count_for_filtering", value = as.numeric(params$min_count_for_filtering))
-      }
-      if ("min_prop_for_filtering" %in% names(params)) {
-        updateNumericInput(session, "min_prop_for_filtering", value = as.numeric(params$min_prop_for_filtering))
+        updateNumericInput(session, "min_count_for_filtering_analyze", value = as.numeric(params$min_count_for_filtering))
       }
       
-      # Populate optional URLs
+      if ("min_prop_for_filtering" %in% names(params)) {
+        updateNumericInput(session, "min_prop_for_filtering", value = as.numeric(params$min_prop_for_filtering))
+        updateNumericInput(session, "min_prop_for_filtering_analyze", value = as.numeric(params$min_prop_for_filtering))
+      }
+      
+      # ===== OPTIONAL URLs - Same for both modes =====
       if ("raw_seq_URL" %in% names(params)) {
         updateTextInput(session, "raw_seq_URL", value = params$raw_seq_URL)
       }
@@ -1167,7 +1191,7 @@ server <- function(input, output, session) {
         updateTextInput(session, "multiqc_url", value = params$multiqc_url)
       }
       
-      # Load report metadata parameters
+      # ===== REPORT METADATA - Same for both modes =====
       if ("PI" %in% names(params)) {
         updateTextInput(session, "PI", value = params$PI)
       }
@@ -1199,49 +1223,53 @@ server <- function(input, output, session) {
         updateTextInput(session, "Report_Reviewed_By", value = params$Report_Reviewed_By)
       }
       
-      # Handle contrasts
+      # ===== CONTRASTS - Handle BOTH modes =====
       if ("contrasts" %in% names(params)) {
         if (!file.exists(params$contrasts)) {
+          # It's a text value, not a file path
           updateTextInput(session, "contrasts_text", value = params$contrasts)
+          updateTextInput(session, "contrasts_text_analyze", value = params$contrasts)
         } else {
+          # It's a file path
           values$selected_files$contrasts <- params$contrasts
+          values$selected_files$contrasts_analyze <- params$contrasts
         }
       }
       
-      # Store file paths
+      # ===== SAMPLE SHEET - Handle BOTH modes =====
       if ("sample_sheet" %in% names(params)) {
         values$selected_files$sample_sheet <- params$sample_sheet
+        values$selected_files$sample_sheet_analyze <- params$sample_sheet
         values$sample_sheet_source <- "loaded_from_params"
         values$sample_sheet_path <- params$sample_sheet
       }
       
-      # Parse and store file lists
-      parse_file_pairs <- function(param_value) {
-        if (is.null(param_value) || param_value == "") return(NULL)
-        param_value <- gsub('^["\']|["\']$', '', param_value)
-        pairs <- strsplit(param_value, ",")[[1]]
-        sapply(pairs, function(x) {
-          x <- gsub('^["\']|["\']$', '', trimws(x))
-          parts <- strsplit(x, ":")[[1]]
-          if (length(parts) >= 2) parts[2] else x
-        })
+      # ===== FILE LISTS - Handle BOTH modes =====
+      if ("peak_files" %in% names(params)) {
+        peak_files_parsed <- parse_file_pairs(params$peak_files)
+        values$selected_files$peak_files <- peak_files_parsed
       }
       
-      if ("peak_files" %in% names(params)) {
-        values$selected_files$peak_files <- parse_file_pairs(params$peak_files)
-      }
       if ("bigwig_files" %in% names(params)) {
-        values$selected_files$bigwig_files <- parse_file_pairs(params$bigwig_files)
+        bigwig_files_parsed <- parse_file_pairs(params$bigwig_files)
+        values$selected_files$bigwig_files <- bigwig_files_parsed
+        values$selected_files$bigwig_files_analyze <- bigwig_files_parsed  # For analyze mode
       }
+      
       if ("bam_files" %in% names(params)) {
         values$selected_files$bam_files <- parse_file_pairs(params$bam_files)
       }
+      
+      # ===== ANALYZE-ONLY SPECIFIC FILES =====
       if ("dds_file" %in% names(params)) {
-        values$selected_files$dds_file <- params$dds_file
+        values$selected_files$existing_dds <- params$dds_file  # Use analyze-only key
       }
+      
       if ("peak_annotation" %in% names(params)) {
-        values$selected_files$peak_annotation <- params$peak_annotation
+        values$selected_files$existing_annotation <- params$peak_annotation  # Use analyze-only key
       }
+      
+      # ===== OTHER FILES - Original mode only =====
       if ("qc_flagstat_dir" %in% names(params)) {
         values$selected_files$qc_flagstat_dir <- params$qc_flagstat_dir
       }
@@ -1249,8 +1277,11 @@ server <- function(input, output, session) {
         values$selected_files$qc_frip_file <- params$qc_frip_file
       }
       
+      # Mark that parameters were loaded
+      values$params_loaded <- TRUE
+      
       cat("DEBUG: All updates completed successfully\n")
-      showNotification("Parameters loaded successfully from file!", type = "message")
+      showNotification("Parameters loaded successfully from file! Fields populated for all compatible modes.", type = "message")
       
     }, error = function(e) {
       cat("DEBUG: Error in load_existing_params:", e$message, "\n")
@@ -1812,8 +1843,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Submit job - CORRECTED VERSION  
-  # Submit job - Updated to handle different analysis modes
+  # Submit job - Updated to handle different analysis modes and fix file copy error
   observeEvent(input$submit_job, {
     req(values$params_valid)
     tryCatch({
@@ -1822,13 +1852,25 @@ server <- function(input, output, session) {
         # Using loaded params file
         params <- parse_params_file(values$existing_params_file)
         seqID <- params$seqID %||% "unknown"
-        output_path <- params[["output-path"]] %||% params[["output_path"]] %||% 
+        output_path <- params[["output-path"]] %||% params[["output_path"]] %||%
           (if (input$analysis_mode == "analyze_only") input$output_path_analyze else input$output_path)
         report_title <- params$report_title %||% "ATAC-seq Analysis Report"
-        # Copy to output directory with standard name
+        
+        # Create the target path
         final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
         dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
-        file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
+        
+        # FIX: Only copy if source and destination are different
+        source_path <- normalizePath(values$existing_params_file, mustWork = TRUE)
+        target_path <- normalizePath(final_params_path, mustWork = FALSE)
+        
+        if (source_path != target_path) {
+          cat("DEBUG: Copying params file from", source_path, "to", target_path, "\n")
+          file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
+        } else {
+          cat("DEBUG: Source and destination are the same, skipping copy\n")
+        }
+        
       } else {
         # Using generated params - get the correct field values based on mode
         req(values$params_generated)

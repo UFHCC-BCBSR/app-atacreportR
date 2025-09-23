@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200gb
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/rserver_%j.log
-#SBATCH --error=logs/rserver_%j.error
+#SBATCH --output=logs/peak-report_%j.log
+#SBATCH --error=logs/peak-report_%j.error
 #SBATCH --account=cancercenter-dept
 #SBATCH --qos=cancercenter-dept-b
 

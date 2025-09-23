@@ -116,6 +116,8 @@ ui <- fluidPage(
           h5("Browse HiPerGator for Existing params.txt"),
           conditionalPanel(
             condition = "output.authenticated",
+            textInput("custom_path_existing_params", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
             shinyFilesButton("browse_existing_params", "Browse Existing params.txt", "Select params file", class = "btn-secondary", multiple = FALSE),
             uiOutput("selected_existing_params_file")
           ),
@@ -242,6 +244,8 @@ ui <- fluidPage(
                   condition = "output.authenticated",
                   fluidRow(
                     column(6,
+                           textInput("custom_path_sample_sheet", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                            shinyFilesButton("browse_sample_sheet", "Browse HiPerGator", "Select CSV file", class = "btn-info", multiple = FALSE),
                            uiOutput("selected_sample_sheet_browse")
                     ),
@@ -273,6 +277,8 @@ ui <- fluidPage(
             p("Select multiple peak files (.broadPeak format). Files will be matched to samples by basename:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_peak_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
               uiOutput("selected_peak_files")
             ),
@@ -290,6 +296,8 @@ ui <- fluidPage(
             p("Select multiple BAM files for read counting. Files will be matched to samples by basename:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_bam_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_bam_files", "Browse BAM Files", "Select multiple BAM files", class = "btn-info", multiple = TRUE),
               uiOutput("selected_bam_files")
             ),
@@ -307,6 +315,8 @@ ui <- fluidPage(
             p("Select multiple BigWig files. Files will be matched to samples by basename:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_bigwig_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_bigwig_files", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
               uiOutput("selected_bigwig_files")
             ),
@@ -326,6 +336,8 @@ ui <- fluidPage(
               p("Specify contrasts either by uploading a file OR entering text (required for differential analysis):"),
               conditionalPanel(
                 condition = "output.authenticated",
+                textInput("custom_path_contrasts", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                 shinyFilesButton("browse_contrasts", "Browse Contrasts File", "Select contrasts file", class = "btn-info", multiple = FALSE),
                 uiOutput("selected_contrasts")
               ),
@@ -377,6 +389,8 @@ ui <- fluidPage(
                 p("Select your existing DDS (.RData) file from previous analysis:"),
                 conditionalPanel(
                   condition = "output.authenticated",
+                  textInput("custom_path_existing_dds", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                   shinyFilesButton("browse_existing_dds", "Browse DDS File", "Select DDS RData file", class = "btn-success", multiple = FALSE),
                   uiOutput("selected_existing_dds")
                 ),
@@ -393,6 +407,8 @@ ui <- fluidPage(
                 p("Select annotated consensus peaks file. If not provided, annotation will be generated automatically:"),
                 conditionalPanel(
                   condition = "output.authenticated",
+                  textInput("custom_path_existing_annotation", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                   shinyFilesButton("browse_existing_annotation", "Browse Annotation File", "Select annotation file", class = "btn-info", multiple = FALSE),
                   uiOutput("selected_existing_annotation")
                 )
@@ -409,6 +425,8 @@ ui <- fluidPage(
                   condition = "output.authenticated",
                   fluidRow(
                     column(6,
+                           textInput("custom_path_sample_sheet_analyze", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                            shinyFilesButton("browse_sample_sheet_analyze", "Browse HiPerGator", "Select CSV file", class = "btn-info", multiple = FALSE),
                            uiOutput("selected_sample_sheet_browse_analyze")
                     ),
@@ -433,6 +451,8 @@ ui <- fluidPage(
             p("Select multiple BigWig files. Files will be matched to samples by basename:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_bigwig_files_analyze", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_bigwig_files_analyze", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
               uiOutput("selected_bigwig_files_analyze")
             ),
@@ -450,6 +470,8 @@ ui <- fluidPage(
             p("Specify contrasts for differential analysis:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_contrasts_analyze", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_contrasts_analyze", "Browse Contrasts File", "Select contrasts file", class = "btn-info", multiple = FALSE),
               uiOutput("selected_contrasts_analyze")
             ),
@@ -481,6 +503,8 @@ ui <- fluidPage(
             p("You can specify contrasts now or add them later when running differential analysis:"),
             conditionalPanel(
               condition = "output.authenticated",
+              textInput("custom_path_contrasts_optional", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
               shinyFilesButton("browse_contrasts_optional", "Browse Contrasts File", "Select contrasts file", class = "btn-secondary", multiple = FALSE),
               uiOutput("selected_contrasts_optional")
             ),
@@ -502,6 +526,8 @@ ui <- fluidPage(
                 uiOutput("selected_qc_flagstat_dir"),
                 br(),
                 h5("QC FRIP File:"),
+                textInput("custom_path_qc_frip_file", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+
                 shinyFilesButton("browse_qc_frip_file", "Browse QC FRIP File", "Select FRIP file", class = "btn-info", multiple = FALSE),
                 uiOutput("selected_qc_frip_file")
               )
@@ -627,21 +653,18 @@ server <- function(input, output, session) {
   })
   
   # Login handler
-  # Login handler
   observeEvent(input$login_btn, {
     req(input$group_name, input$group_password)
     if (input$group_name %in% names(group_passwords) &&
         input$group_password == group_passwords[[input$group_name]]) {
       values$authenticated <- TRUE
       values$current_group <- input$group_name
-      
       # Set up file browser roots
       group_path <- paste0("/blue/", values$current_group)
       if (dir.exists(group_path)) {
         group_volumes <- setNames(group_path, values$current_group)
         
         # Initialize all file browsers for BOTH modes
-        
         # Original mode buttons:
         shinyFileChoose(input, "browse_sample_sheet", roots = group_volumes, session = session, filetypes = c("", "csv"))
         shinyFileChoose(input, "browse_existing_params", roots = group_volumes, session = session, filetypes = c("", "txt"))
@@ -653,13 +676,103 @@ server <- function(input, output, session) {
         shinyFileChoose(input, "browse_peak_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"))
         shinyDirChoose(input, "browse_qc_flagstat_dir", roots = group_volumes, session = session)
         shinyFileChoose(input, "browse_qc_frip_file", roots = group_volumes, session = session, filetypes = c("", "txt"))
-        
-        # ADD THESE - Analyze-only mode buttons:
+        # Analyze-only mode buttons:
         shinyFileChoose(input, "browse_existing_dds", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"))
         shinyFileChoose(input, "browse_existing_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"))
         shinyFileChoose(input, "browse_sample_sheet_analyze", roots = group_volumes, session = session, filetypes = c("", "csv"))
         shinyFileChoose(input, "browse_bigwig_files_analyze", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"))
         shinyFileChoose(input, "browse_contrasts_analyze", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"))
+        
+        # Custom path observers for all file browsers
+        observe({
+          if (!is.null(input$custom_path_sample_sheet) && input$custom_path_sample_sheet != "") {
+            shinyFileChoose(input, "browse_sample_sheet", roots = group_volumes, session = session, filetypes = c("", "csv"), defaultPath = input$custom_path_sample_sheet)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_existing_params) && input$custom_path_existing_params != "") {
+            shinyFileChoose(input, "browse_existing_params", roots = group_volumes, session = session, filetypes = c("", "txt"), defaultPath = input$custom_path_existing_params)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_peak_files) && input$custom_path_peak_files != "") {
+            shinyFileChoose(input, "browse_peak_files", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"), defaultPath = input$custom_path_peak_files)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_bigwig_files) && input$custom_path_bigwig_files != "") {
+            shinyFileChoose(input, "browse_bigwig_files", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"), defaultPath = input$custom_path_bigwig_files)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_contrasts) && input$custom_path_contrasts != "") {
+            shinyFileChoose(input, "browse_contrasts", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"), defaultPath = input$custom_path_contrasts)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_dds_file) && input$custom_path_dds_file != "") {
+            shinyFileChoose(input, "browse_dds_file", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"), defaultPath = input$custom_path_dds_file)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_bam_files) && input$custom_path_bam_files != "") {
+            shinyFileChoose(input, "browse_bam_files", roots = group_volumes, session = session, filetypes = c("", "bam"), defaultPath = input$custom_path_bam_files)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_peak_annotation) && input$custom_path_peak_annotation != "") {
+            shinyFileChoose(input, "browse_peak_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"), defaultPath = input$custom_path_peak_annotation)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_qc_flagstat_dir) && input$custom_path_qc_flagstat_dir != "") {
+            shinyDirChoose(input, "browse_qc_flagstat_dir", roots = group_volumes, session = session, defaultPath = input$custom_path_qc_flagstat_dir)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_qc_frip_file) && input$custom_path_qc_frip_file != "") {
+            shinyFileChoose(input, "browse_qc_frip_file", roots = group_volumes, session = session, filetypes = c("", "txt"), defaultPath = input$custom_path_qc_frip_file)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_existing_dds) && input$custom_path_existing_dds != "") {
+            shinyFileChoose(input, "browse_existing_dds", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"), defaultPath = input$custom_path_existing_dds)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_existing_annotation) && input$custom_path_existing_annotation != "") {
+            shinyFileChoose(input, "browse_existing_annotation", roots = group_volumes, session = session, filetypes = c("", "txt"), defaultPath = input$custom_path_existing_annotation)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_sample_sheet_analyze) && input$custom_path_sample_sheet_analyze != "") {
+            shinyFileChoose(input, "browse_sample_sheet_analyze", roots = group_volumes, session = session, filetypes = c("", "csv"), defaultPath = input$custom_path_sample_sheet_analyze)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_bigwig_files_analyze) && input$custom_path_bigwig_files_analyze != "") {
+            shinyFileChoose(input, "browse_bigwig_files_analyze", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"), defaultPath = input$custom_path_bigwig_files_analyze)
+          }
+        })
+        
+        observe({
+          if (!is.null(input$custom_path_contrasts_analyze) && input$custom_path_contrasts_analyze != "") {
+            shinyFileChoose(input, "browse_contrasts_analyze", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"), defaultPath = input$custom_path_contrasts_analyze)
+          }
+        })
       }
       showNotification("Login successful! HiPerGator file browsing enabled.", type = "message")
     } else {

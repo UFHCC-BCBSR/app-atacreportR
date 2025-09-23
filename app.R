@@ -854,12 +854,16 @@ server <- function(input, output, session) {
   # Option 1: HiPerGator browse
   setup_file_browser("browse_sample_sheet", "sample_sheet_browse")
   
+  # Updated browse observer to clear upload when browse is used
   observeEvent(values$selected_files$sample_sheet_browse, {
     if (!is.null(values$selected_files$sample_sheet_browse)) {
+      # Clear any previous upload selection
+      # (Note: We can't easily clear the fileInput widget, but we can clear our tracking)
+      
       values$sample_sheet_source <- "hipergator"
       values$sample_sheet_path <- values$selected_files$sample_sheet_browse
       values$selected_files$sample_sheet <- values$selected_files$sample_sheet_browse
-      showNotification("HiPerGator file selected", type = "message")
+      showNotification("HiPerGator file selected (upload cleared)", type = "message")
     }
   })
   
@@ -1091,35 +1095,62 @@ server <- function(input, output, session) {
     }
   })
   
-  output$active_sample_sheet_status_analyze <- renderUI({
-    # Similar logic to the original, but for analyze mode
-    if (!is.null(values$selected_files$sample_sheet_analyze)) {
-      div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 15px;",
-          tags$i(class = "fa fa-check-circle", style = "color: #155724;"),
-          strong(" Active: "), "Using HiPerGator file",
-          br(),
-          strong("File: "), basename(values$selected_files$sample_sheet_analyze)
-      )
+  # Option 2: Upload
+  # Updated upload handler for sample sheet (regular mode)
+  observeEvent(input$upload_sample_sheet, {
+    if (!is.null(input$upload_sample_sheet)) {
+      # Get the user-defined output path
+      output_path <- input$output_path
+      
+      if (is.null(output_path) || output_path == "") {
+        showNotification("Please set an output path before uploading files", type = "error")
+        return()
+      }
+      
+      # Create output directory if it doesn't exist
+      if (!dir.exists(output_path)) {
+        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+      }
+      
+      # Copy to output path with original filename
+      output_file_path <- file.path(output_path, input$upload_sample_sheet$name)
+      file.copy(input$upload_sample_sheet$datapath, output_file_path, overwrite = TRUE)
+      
+      # Clear browse selection and set upload as active
+      values$selected_files$sample_sheet_browse <- NULL
+      values$sample_sheet_source <- "upload"
+      values$sample_sheet_path <- output_file_path
+      values$selected_files$sample_sheet <- output_file_path
+      
+      showNotification(paste("File uploaded to output directory:", output_file_path), type = "message")
     }
   })
   
-  # Option 2: Upload
-  observeEvent(input$upload_sample_sheet, {
-    if (!is.null(input$upload_sample_sheet)) {
-      # Create permanent directory
-      permanent_dir <- file.path(dirname(getwd()), "uploaded_files")
-      dir.create(permanent_dir, recursive = TRUE, showWarnings = FALSE)
+  # Updated upload handler for sample sheet (analyze mode)
+  observeEvent(input$upload_sample_sheet_analyze, {
+    if (!is.null(input$upload_sample_sheet_analyze)) {
+      # Get the user-defined output path for analyze mode
+      output_path <- input$output_path_analyze
       
-      # Copy to permanent location with original filename
-      permanent_path <- file.path(permanent_dir, input$upload_sample_sheet$name)
-      file.copy(input$upload_sample_sheet$datapath, permanent_path, overwrite = TRUE)
+      if (is.null(output_path) || output_path == "") {
+        showNotification("Please set an output path before uploading files", type = "error")
+        return()
+      }
       
-      # Store the permanent path instead of temp path
-      values$sample_sheet_source <- "upload"
-      values$sample_sheet_path <- permanent_path
-      values$selected_files$sample_sheet <- permanent_path
+      # Create output directory if it doesn't exist
+      if (!dir.exists(output_path)) {
+        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+      }
       
-      showNotification("File uploaded and saved permanently!", type = "message")
+      # Copy to output path with original filename
+      output_file_path <- file.path(output_path, input$upload_sample_sheet_analyze$name)
+      file.copy(input$upload_sample_sheet_analyze$datapath, output_file_path, overwrite = TRUE)
+      
+      # Clear browse selection and set upload as active
+      values$selected_files$sample_sheet_analyze <- output_file_path
+      values$selected_files$sample_sheet <- output_file_path  # Also update main key
+      
+      showNotification(paste("File uploaded to output directory:", output_file_path), type = "message")
     }
   })
   
@@ -1403,21 +1434,26 @@ server <- function(input, output, session) {
   })
   
   # Show active sample sheet status (fixes the "0.csv" issue)
+  # Updated active sample sheet status display
   output$active_sample_sheet_status <- renderUI({
     if (!is.null(values$sample_sheet_source) && !is.null(values$sample_sheet_path)) {
-      
       # Get the correct filename based on source
       filename <- if (values$sample_sheet_source == "hipergator") {
         basename(values$sample_sheet_path)
       } else if (values$sample_sheet_source == "upload") {
-        input$upload_sample_sheet$name  # This fixes the "0.csv" issue
+        # For uploads, show the original filename
+        if (!is.null(input$upload_sample_sheet)) {
+          input$upload_sample_sheet$name
+        } else {
+          basename(values$sample_sheet_path)
+        }
       } else {
         basename(values$sample_sheet_path)
       }
       
       source_text <- switch(values$sample_sheet_source,
                             "hipergator" = "Using HiPerGator file",
-                            "upload" = "Using uploaded file",
+                            "upload" = "Using uploaded file (saved to output directory)",
                             "loaded_from_params" = "Loaded from params.txt"
       )
       
@@ -1425,11 +1461,39 @@ server <- function(input, output, session) {
           tags$i(class = "fa fa-check-circle", style = "color: #155724;"),
           strong(" Active: "), source_text,
           br(),
-          strong("File: "), filename
+          strong("File: "), filename,
+          if (values$sample_sheet_source == "upload") {
+            tags$div(
+              tags$small(paste("Saved to:", values$sample_sheet_path), style = "color: #6c757d;")
+            )
+          }
       )
     }
   })
   
+  # Updated analyze mode status
+  output$active_sample_sheet_status_analyze <- renderUI({
+    if (!is.null(values$selected_files$sample_sheet_analyze)) {
+      # Determine if this was uploaded or browsed
+      source_text <- if (!is.null(input$upload_sample_sheet_analyze)) {
+        "Using uploaded file (saved to output directory)"
+      } else {
+        "Using HiPerGator file"
+      }
+      
+      filename <- basename(values$selected_files$sample_sheet_analyze)
+      
+      div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 15px;",
+          tags$i(class = "fa fa-check-circle", style = "color: #155724;"),
+          strong(" Active: "), source_text,
+          br(),
+          strong("File: "), filename,
+          tags$div(
+            tags$small(paste("Path:", values$selected_files$sample_sheet_analyze), style = "color: #6c757d;")
+          )
+      )
+    }
+  })
 
   output$selected_peak_files <- renderUI({
     if (!is.null(values$selected_files$peak_files)) {

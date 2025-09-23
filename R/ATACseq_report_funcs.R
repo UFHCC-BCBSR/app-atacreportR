@@ -19,7 +19,9 @@ assign_gene_symbols <- function(peak_list, contrast_full) {
   
   # Split the peak list into Entrez IDs
   entrez_ids <- unlist(strsplit(peak_list, "/"))
-  
+  # Pre-filter de_results_df once for relevant contrasts
+  de_results_df_filtered <- de_results_df %>%
+    filter(!is.na(ENTREZID) & ENTREZID != "")
   # Filter de_results_df based on contrast and direction
   de_sub <- de_results_df_filtered %>%
     filter(grepl(contrast_base, Contrast),
@@ -438,7 +440,9 @@ generate_enrichment_plot_atac <- function(gene_lists, de_results_df, universe_en
     
     # Split the peak list into Entrez IDs
     entrez_ids <- unlist(strsplit(peak_list, "/"))
-    
+    # Pre-filter de_results_df once for relevant contrasts
+    de_results_df_filtered <- de_results_df %>%
+      filter(!is.na(ENTREZID) & ENTREZID != "")
     # Filter de_results_df based on contrast and direction
     de_sub <- de_results_df_filtered %>%
       filter(grepl(contrast_base, Contrast),
@@ -603,7 +607,7 @@ generate_kegg_enrichment_plot_atac <- function(gene_lists, de_results_df, univer
   # Ensure gene lists are named and define contrast order
   if (is.null(names(gene_lists))) stop("Each gene list must be named!")
   contrast_order <- names(gene_lists)
-  
+  force(de_results_df)
   # FIX: Handle both Ensembl and Entrez ID formats
   sample_id <- de_results_df$Entrez.ID[!is.na(de_results_df$Entrez.ID)][1]
   if (grepl("^ENSMUSG|^ENSG", sample_id)) {
@@ -653,7 +657,7 @@ generate_kegg_enrichment_plot_atac <- function(gene_lists, de_results_df, univer
     data = data,
     fun = "enrichKEGG",
     universe = na.omit(universe_entrez),
-    organism = "mmu",  # Assuming human (Homo sapiens) for KEGG enrichment
+    organism = report_params[["organism"]], 
     keyType = "ncbi-geneid",
     pvalueCutoff = significance_threshold
   )

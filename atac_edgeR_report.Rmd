@@ -47,9 +47,10 @@ select <- dplyr::select
 
 # Edit this for interactive use
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
-params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
+params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
 ```
 
 ```{r parse-params, include=FALSE}
@@ -1315,13 +1316,7 @@ for (contrast in names(results_list)) {
 }
 ```
 
-## Gene Ontology (GO) Enrichment Analysis
-
-Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that term.
-
-To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
-
-```{r GO, eval = !params$test_mode}
+```{r prep-for-enrich, eval = !params$test_mode}
 de_results_df <- bind_rows(lapply(names(results_list), function(contrast) {
   df <- results_list[[contrast]][["table"]]
   df$Contrast <- contrast  # Add the contrast column
@@ -1352,6 +1347,12 @@ if ("geneId" %in% colnames(de_results_df)) {
   stop("Cannot find gene ID column in results")
 }
 ```
+
+## Gene Ontology (GO) Enrichment Analysis
+
+Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that term.
+
+To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 
 ```{r run GO enrich, eval = !params$test_mode}
 # Perform GO Enrichment for BP, MF, CC

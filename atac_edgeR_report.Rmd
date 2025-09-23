@@ -50,7 +50,8 @@ select <- dplyr::select
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
-params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
+# params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
+params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-prep-data_params.txt"
 ```
 
 ```{r parse-params, include=FALSE}

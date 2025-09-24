@@ -570,9 +570,7 @@ ui <- fluidPage(
     )
   ),
   
-  # Validation and Generation
-# Validation and Generation - now for ALL modes including prepare_only
-# Validation and Generation - now for ALL modes including prepare_only
+# Validation and Generation
 div(class = "step-section",
     h2("Generate Parameters", style = "text-align: center; margin-bottom: 30px;"),
     div(style = "text-align: center;",
@@ -583,13 +581,14 @@ div(class = "step-section",
         downloadButton("download_params", "Download params.txt", class = "btn-info btn-lg", disabled = TRUE),
         br(), br(),
         # Dynamic button text based on mode
+        # Replace the existing conditional panels with this:
         conditionalPanel(
           condition = "input.analysis_mode == 'prepare_only'",
-          actionButton("submit_job", "Submit Data Preparation Job", class = "btn-primary btn-lg", disabled = TRUE)
+          actionButton("submit_job_prepare", "Submit Data Preparation Job", class = "btn-primary btn-lg", disabled = TRUE)
         ),
         conditionalPanel(
           condition = "input.analysis_mode != 'prepare_only'",
-          actionButton("submit_job", "Submit Full Analysis Job", class = "btn-primary btn-lg", disabled = TRUE)
+          actionButton("submit_job_analyze", "Submit Full Analysis Job", class = "btn-primary btn-lg", disabled = TRUE)
         )
     ),
     br(),
@@ -642,7 +641,159 @@ server <- function(input, output, session) {
       )
     }
   })
-  
+  # Extract submission logic into a reusable function
+  submit_analysis_job <- function() {
+    req(values$params_valid)
+    tryCatch({
+      # Determine which params file to use
+      if (!is.null(values$existing_params_file) && file.exists(values$existing_params_file)) {
+        # Using loaded params file
+        params <- parse_params_file(values$existing_params_file)
+        seqID <- params$seqID %||% "unknown"
+        output_path <- params[["output-path"]] %||% params[["output_path"]] %||%
+          (if (input$analysis_mode == "analyze_only") input$output_path_analyze else input$output_path)
+        report_title <- params$report_title %||% "ATAC-seq Analysis Report"
+        # Create the target path
+        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
+        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
+        # FIX: Only copy if source and destination are different
+        source_path <- normalizePath(values$existing_params_file, mustWork = TRUE)
+        target_path <- normalizePath(final_params_path, mustWork = FALSE)
+        if (source_path != target_path) {
+          cat("DEBUG: Copying params file from", source_path, "to", target_path, "\n")
+          file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
+        } else {
+          cat("DEBUG: Source and destination are the same, skipping copy\n")
+        }
+      } else {
+        # Using generated params - get the correct field values based on mode
+        req(values$params_generated)
+        if (input$analysis_mode == "analyze_only") {
+          seqID <- input$seqID_analyze
+          output_path <- input$output_path_analyze
+          report_title <- input$report_title_analyze
+        } else {
+          seqID <- input$seqID
+          output_path <- input$output_path
+          report_title <- input$report_title
+        }
+        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
+        if (!file.exists(final_params_path)) {
+          stop("Generated params file not found at expected location: ", final_params_path)
+        }
+      }
+      
+      # Choose the appropriate sbatch script based on analysis mode
+      if (input$analysis_mode == "prepare_only") {
+        sbatch_script <- "prepare-data-only.sbatch"
+        job_description <- "Data preparation job"
+      } else {
+        sbatch_script <- "render-report-with-params.sbatch"
+        job_description <- "Full analysis job"
+      }
+      
+      # Build the command arguments
+      sbatch_args <- c(sbatch_script, "--params-file", final_params_path)
+      # Add title for full analysis jobs
+      if (input$analysis_mode != "prepare_only") {
+        sbatch_args <- c(sbatch_args, "--title", shQuote(report_title))
+      }
+      
+      # Create the full command string for display
+      full_command <- paste("sbatch", paste(sbatch_args, collapse = " "))
+      
+      # Submit the job
+      result <- system2("sbatch", args = sbatch_args, stdout = TRUE, stderr = TRUE)
+      
+      if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
+        job_output <- paste(result, collapse = "\n")
+        job_id_match <- regexpr("Submitted batch job ([0-9]+)", job_output)
+        job_id <- if (job_id_match > 0) {
+          gsub("Submitted batch job ", "", regmatches(job_output, job_id_match))
+        } else {
+          "Unknown"
+        }
+        
+        # Show temporary notification
+        showNotification(paste(job_description, "submitted successfully! Job ID:", job_id),
+                         type = "message", duration = 10)
+        
+        # Update permanent UI elements
+        output$job_submission_status <- renderUI({
+          div(style = "background-color: #d4edda; padding: 15px; border-radius: 5px; margin-top: 15px;",
+              tags$h4("✅ Job Submitted Successfully!", style = "color: #155724; margin-top: 0;"),
+              tags$p(strong("Job ID: "), job_id),
+              tags$p(strong("Command: "), tags$code(full_command)),
+              tags$p(strong("Parameters file: "), tags$code(final_params_path)),
+              if (input$analysis_mode == "prepare_only") {
+                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
+              } else {
+                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
+              }
+          )
+        })
+        
+        # Show expected output files
+        output$expected_output_files <- renderUI({
+          if (input$analysis_mode == "prepare_only") {
+            # Data preparation outputs
+            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
+                tags$h4("📁 Expected Output Files", style = "color: #004085; margin-top: 0;"),
+                tags$p("When the job completes, these files will be created:"),
+                tags$ul(
+                  tags$li(tags$strong("DDS object: "), tags$code(file.path(output_path, paste0(seqID, ".dds.RData")))),
+                  tags$li(tags$strong("Consensus peaks: "), tags$code(file.path(output_path, paste0(seqID, ".consensus-peaks.txt")))),
+                  tags$li(tags$strong("Annotated peaks: "), tags$code(file.path(output_path, paste0(seqID, ".annotated.consensus-peaks.txt"))))
+                ),
+                tags$p(style = "margin-top: 15px; color: #666;",
+                       "💡 These files can be used as input for differential analysis in 'Analysis from Existing Data' mode.")
+            )
+          } else {
+            # Analysis outputs
+            report_filename <- paste0(seqID, "_Report.html")
+            report_path <- file.path(output_path, report_filename)
+            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
+                tags$h4("📊 Expected Output Files", style = "color: #004085; margin-top: 0;"),
+                tags$p("When the job completes, the main output will be:"),
+                tags$ul(
+                  tags$li(tags$strong("Analysis Report: "), tags$code(report_path))
+                ),
+                tags$p("Additional files (results tables, plots, etc.) will be created in the same directory."),
+                tags$p(style = "margin-top: 15px; color: #666;",
+                       "💡 The HTML report will contain all analysis results, plots, and downloadable data tables.")
+            )
+          }
+        })
+      } else {
+        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"))
+        # Show error in permanent UI
+        output$job_submission_status <- renderUI({
+          div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
+              tags$h4("❌ Job Submission Failed", style = "color: #721c24; margin-top: 0;"),
+              tags$p(strong("Error: "), error_msg),
+              tags$p(strong("Command attempted: "), tags$code(full_command))
+          )
+        })
+        output$expected_output_files <- renderUI({
+          div() # Empty div to clear any previous content
+        })
+        showNotification(error_msg, type = "error", duration = 15)
+      }
+    }, error = function(e) {
+      error_msg <- paste("Error submitting SLURM job:", e$message)
+      # Show error in permanent UI
+      output$job_submission_status <- renderUI({
+        div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
+            tags$h4("❌ Job Submission Error", style = "color: #721c24; margin-top: 0;"),
+            tags$p(strong("Error: "), error_msg)
+        )
+      })
+      output$expected_output_files <- renderUI({
+        div() # Empty div to clear any previous content
+      })
+      showNotification(error_msg, type = "error")
+    })
+  }
   # Login handler
   observeEvent(input$login_btn, {
     req(input$group_name, input$group_password)
@@ -1791,16 +1942,13 @@ server <- function(input, output, session) {
   # Validation event
   observeEvent(input$validate_params, {
     messages <- validate_parameters()
-    
     if (values$params_valid) {
       shinyjs::enable("generate_params")
     } else {
       shinyjs::disable("generate_params")
-      shinyjs::disable("submit_job")
       values$params_generated <- FALSE
     }
   })
-  
   # Display validation status
   output$validation_status <- renderUI({
     if (length(values$validation_messages) > 0) {
@@ -2066,175 +2214,35 @@ server <- function(input, output, session) {
   # Update the existing button enable/disable logic to include the download button:
   observe({
     if (values$params_valid && values$params_generated) {
-      shinyjs::enable("submit_job")
-      shinyjs::enable("download_params")  # Enable download when params are generated
+      shinyjs::enable("download_params")
+      # Enable the appropriate button based on mode
+      if (input$analysis_mode == 'prepare_only') {
+        shinyjs::enable("submit_job_prepare")
+        shinyjs::disable("submit_job_analyze")  # Ensure other is disabled
+      } else {
+        shinyjs::enable("submit_job_analyze")
+        shinyjs::disable("submit_job_prepare")  # Ensure other is disabled
+      }
     } else {
-      shinyjs::disable("submit_job")
-      shinyjs::disable("download_params")  # Disable download when no params
+      shinyjs::disable("download_params")
+      shinyjs::disable("submit_job_prepare")
+      shinyjs::disable("submit_job_analyze")
     }
   })
-  
   # Submit job - Updated to handle different analysis modes and fix file copy error
-  observeEvent(input$submit_job, {
-    req(values$params_valid)
-    tryCatch({
-      # Determine which params file to use
-      if (!is.null(values$existing_params_file) && file.exists(values$existing_params_file)) {
-        # Using loaded params file
-        params <- parse_params_file(values$existing_params_file)
-        seqID <- params$seqID %||% "unknown"
-        output_path <- params[["output-path"]] %||% params[["output_path"]] %||%
-          (if (input$analysis_mode == "analyze_only") input$output_path_analyze else input$output_path)
-        report_title <- params$report_title %||% "ATAC-seq Analysis Report"
-        # Create the target path
-        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
-        dir.create(output_path, recursive = TRUE, showWarnings = FALSE)
-        # FIX: Only copy if source and destination are different
-        source_path <- normalizePath(values$existing_params_file, mustWork = TRUE)
-        target_path <- normalizePath(final_params_path, mustWork = FALSE)
-        if (source_path != target_path) {
-          cat("DEBUG: Copying params file from", source_path, "to", target_path, "\n")
-          file.copy(values$existing_params_file, final_params_path, overwrite = TRUE)
-        } else {
-          cat("DEBUG: Source and destination are the same, skipping copy\n")
-        }
-      } else {
-        # Using generated params - get the correct field values based on mode
-        req(values$params_generated)
-        if (input$analysis_mode == "analyze_only") {
-          seqID <- input$seqID_analyze
-          output_path <- input$output_path_analyze
-          report_title <- input$report_title_analyze
-        } else {
-          seqID <- input$seqID
-          output_path <- input$output_path
-          report_title <- input$report_title
-        }
-        final_params_path <- file.path(output_path, paste0(seqID, "_params.txt"))
-        if (!file.exists(final_params_path)) {
-          stop("Generated params file not found at expected location: ", final_params_path)
-        }
-      }
-      
-      # Choose the appropriate sbatch script based on analysis mode
-      if (input$analysis_mode == "prepare_only") {
-        sbatch_script <- "prepare-data-only.sbatch"
-        job_description <- "Data preparation job"
-      } else {
-        sbatch_script <- "render-report-with-params.sbatch"
-        job_description <- "Full analysis job"
-      }
-      
-      # Build the command arguments
-      sbatch_args <- c(sbatch_script, "--params-file", final_params_path)
-      
-      # Add title for full analysis jobs
-      if (input$analysis_mode != "prepare_only") {
-        sbatch_args <- c(sbatch_args, "--title", shQuote(report_title))
-      }
-      
-      # Create the full command string for display
-      full_command <- paste("sbatch", paste(sbatch_args, collapse = " "))
-      
-      # Submit the job
-      result <- system2("sbatch", args = sbatch_args, stdout = TRUE, stderr = TRUE)
-      
-      if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
-        job_output <- paste(result, collapse = "\n")
-        job_id_match <- regexpr("Submitted batch job ([0-9]+)", job_output)
-        job_id <- if (job_id_match > 0) {
-          gsub("Submitted batch job ", "", regmatches(job_output, job_id_match))
-        } else {
-          "Unknown"
-        }
-        
-        # Show temporary notification
-        showNotification(paste(job_description, "submitted successfully! Job ID:", job_id), 
-                         type = "message", duration = 10)
-        
-        # Update permanent UI elements
-        output$job_submission_status <- renderUI({
-          div(style = "background-color: #d4edda; padding: 15px; border-radius: 5px; margin-top: 15px;",
-              tags$h4("✅ Job Submitted Successfully!", style = "color: #155724; margin-top: 0;"),
-              tags$p(strong("Job ID: "), job_id),
-              tags$p(strong("Command: "), tags$code(full_command)),
-              tags$p(strong("Parameters file: "), tags$code(final_params_path)),
-              if (input$analysis_mode == "prepare_only") {
-                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
-              } else {
-                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
-              }
-          )
-        })
-        
-        # Show expected output files
-        output$expected_output_files <- renderUI({
-          if (input$analysis_mode == "prepare_only") {
-            # Data preparation outputs
-            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
-                tags$h4("📁 Expected Output Files", style = "color: #004085; margin-top: 0;"),
-                tags$p("When the job completes, these files will be created:"),
-                tags$ul(
-                  tags$li(tags$strong("DDS object: "), tags$code(file.path(output_path, paste0(seqID, ".dds.RData")))),
-                  tags$li(tags$strong("Consensus peaks: "), tags$code(file.path(output_path, paste0(seqID, ".consensus-peaks.txt")))),
-                  tags$li(tags$strong("Annotated peaks: "), tags$code(file.path(output_path, paste0(seqID, ".annotated.consensus-peaks.txt"))))
-                ),
-                tags$p(style = "margin-top: 15px; color: #666;", 
-                       "💡 These files can be used as input for differential analysis in 'Analysis from Existing Data' mode.")
-            )
-          } else {
-            # Analysis outputs
-            report_filename <- paste0(seqID, "_Report.html")
-            report_path <- file.path(output_path, report_filename)
-            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
-                tags$h4("📊 Expected Output Files", style = "color: #004085; margin-top: 0;"),
-                tags$p("When the job completes, the main output will be:"),
-                tags$ul(
-                  tags$li(tags$strong("Analysis Report: "), tags$code(report_path))
-                ),
-                tags$p("Additional files (results tables, plots, etc.) will be created in the same directory."),
-                tags$p(style = "margin-top: 15px; color: #666;", 
-                       "💡 The HTML report will contain all analysis results, plots, and downloadable data tables.")
-            )
-          }
-        })
-        
-      } else {
-        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"))
-        
-        # Show error in permanent UI
-        output$job_submission_status <- renderUI({
-          div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
-              tags$h4("❌ Job Submission Failed", style = "color: #721c24; margin-top: 0;"),
-              tags$p(strong("Error: "), error_msg),
-              tags$p(strong("Command attempted: "), tags$code(full_command))
-          )
-        })
-        
-        output$expected_output_files <- renderUI({
-          div() # Empty div to clear any previous content
-        })
-        
-        showNotification(error_msg, type = "error", duration = 15)
-      }
-    }, error = function(e) {
-      error_msg <- paste("Error submitting SLURM job:", e$message)
-      
-      # Show error in permanent UI
-      output$job_submission_status <- renderUI({
-        div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
-            tags$h4("❌ Job Submission Error", style = "color: #721c24; margin-top: 0;"),
-            tags$p(strong("Error: "), error_msg)
-        )
-      })
-      
-      output$expected_output_files <- renderUI({
-        div() # Empty div to clear any previous content
-      })
-      
-      showNotification(error_msg, type = "error")
-    })
+  # Lightweight event handlers that just call the main function
+  observeEvent(input$submit_job_prepare, {
+    submit_analysis_job()
   })
+  
+  observeEvent(input$submit_job_analyze, {
+    submit_analysis_job()
+  })
+  
+  # If needed for prep-and-analyze just add:
+  # observeEvent(input$submit_job_third_mode, {
+  #   submit_analysis_job()
+  # })
   observe({
     # List of inputs to watch for changes
     input_list <- list(input$seqID, input$report_title, input$organism, input$annotation_db,
@@ -2250,14 +2258,6 @@ server <- function(input, output, session) {
       values$existing_params_file <- NULL
     }
   })
-  # Enable/disable buttons based on validation state
-  observe({
-    if (values$params_valid && values$params_generated) {
-      shinyjs::enable("submit_job")
-    } else {
-      shinyjs::disable("submit_job")
-    }
-  })
-} # Did I mess up syntax here?
+} # This ends the server{}
 
 shinyApp(ui = ui, server = server)

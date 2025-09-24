@@ -1,36 +1,25 @@
 #!/bin/bash
-#SBATCH --job-name=atac-report
+#SBATCH --job-name=atac-prep-data
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200gb
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/peak-report_%j.log
-#SBATCH --error=logs/peak-report_%j.error
+#SBATCH --output=logs/prep-data_%j.log
+#SBATCH --error=logs/prep-data_%j.error
 #SBATCH --account=cancercenter-dept
 #SBATCH --qos=cancercenter-dept-b
 
-# Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title" --email user@ufl.edu
-# NOTE: Run this script from the directory containing differential_peak_report.Rmd
+# Usage: sbatch prepare-data-only.sbatch --params-file my-params.txt --email user@ufl.edu
 
 # Parse command line arguments
 PARAMS_FILE=""
-REPORT_TITLE="ATAC-seq Differential Accessibility Analysis"
-OUTPUT_DIR=""
 USER_EMAIL=""
 
 while [[ $# -gt 0 ]]; do
 case $1 in
   --params-file)
     PARAMS_FILE="$2"
-    shift 2
-    ;;
-  --title)
-    REPORT_TITLE="$2"
-    shift 2
-    ;;
-  --output-dir)
-    OUTPUT_DIR="$2"
     shift 2
     ;;
   --email)
@@ -63,11 +52,10 @@ if [[ ! -f "$PARAMS_FILE" ]]; then
 fi
 
 echo "=========================================="
-echo "ATAC-seq Report Generation"
+echo "ATAC-seq Data Preparation Only"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Params file: $PARAMS_FILE"
-echo "Report title: $REPORT_TITLE"
 if [[ -n "$USER_EMAIL" ]]; then
   echo "Email notifications: $USER_EMAIL"
 fi
@@ -80,49 +68,38 @@ source /etc/profile.d/modules.sh
 # Load modules
 module purge
 module load R/4.5
-module load pandoc/2.2.2.1
 
-# Debug: check if they work
+# Debug: check if R works
 which Rscript
-which pandoc
-pandoc --version
 
-# Set RSTUDIO_PANDOC
-export RSTUDIO_PANDOC=$(which pandoc | xargs dirname)
-
-# Set output file name using path from params file
-SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
+# Get SEQID for output naming
+SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2 | head -1 | xargs)
 if [[ -z "$SEQID" ]]; then
-  SEQID="ATAC_Report"
+  SEQID="prep-data"
 fi
-OUTPUT_PATH=$(grep "^--output-path" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
-OUTPUT_FILE="$OUTPUT_PATH/${SEQID}_Report.html"
 
-echo "Output file: $OUTPUT_FILE"
+echo "Project ID: $SEQID"
 
-# Render the report with parameters
-Rscript -e "
-.libPaths(c('/blue/cancercenter-dept/shared/R/library/4.5/', '/usr/local/lib/R/site-library', '/usr/lib/R/site-library', '/usr/lib/R/library'))
-Sys.setenv(RSTUDIO_PANDOC='$RSTUDIO_PANDOC')
-rmarkdown::render(
-  'differential_peak_report.Rmd',
-  params = list(
-    params_file = '$PARAMS_FILE',
-    report_title = '$REPORT_TITLE'
-  ),
-  output_file = '$OUTPUT_FILE'
-)
-"
+# Run data preparation using the R script
+Rscript scripts/run_prepare_data_only.R "$PARAMS_FILE"
 
 if [[ $? -eq 0 ]]; then
+  OUTPUT_PATH=$(grep "^--output-path\|^--output_path" "$PARAMS_FILE" | cut -d"'" -f2 | head -1 | xargs)
+  if [[ -z "$OUTPUT_PATH" ]]; then
+    OUTPUT_PATH="."
+  fi
+  
   echo "=========================================="
-  echo "Report completed successfully!"
-  echo "Output: $OUTPUT_FILE"
+  echo "Data preparation completed successfully!"
+  echo "Files created:"
+  echo "  - ${OUTPUT_PATH}/${SEQID}.dds.RData"
+  echo "  - ${OUTPUT_PATH}/${SEQID}.consensus-peaks.txt"
+  echo "  - ${OUTPUT_PATH}/${SEQID}.annotated.consensus-peaks.txt"
   echo "End time: $(date)"
   echo "=========================================="
 else
   echo "=========================================="
-  echo "Report generation failed!"
+  echo "Data preparation failed!"
   echo "Check error logs for details"
   echo "End time: $(date)"
   echo "=========================================="

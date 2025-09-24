@@ -19,7 +19,9 @@ assign_gene_symbols <- function(peak_list, contrast_full) {
   
   # Split the peak list into Entrez IDs
   entrez_ids <- unlist(strsplit(peak_list, "/"))
-  
+  # Pre-filter de_results_df once for relevant contrasts
+  de_results_df_filtered <- de_results_df %>%
+    filter(!is.na(ENTREZID) & ENTREZID != "")
   # Filter de_results_df based on contrast and direction
   de_sub <- de_results_df_filtered %>%
     filter(grepl(contrast_base, Contrast),
@@ -330,6 +332,22 @@ generate_enrichment_plot_atac <- function(gene_lists, de_results_df, universe_en
     )
   }))
   
+  if (is.null(data) || nrow(data) == 0) {
+    message_plot <- ggplot() +
+      annotate("text", x = 1, y = 1, label = paste0("No significant genes found for enrichment\n(", ont_category, ")"), size = 6, hjust = 0.5) +
+      theme_void() +
+      ggtitle(paste("GO Term Enrichment (", ont_category, ")", sep = ""))
+    
+    interactive_plot <- ggplotly(message_plot)
+    static_plot <- message_plot
+    
+    return(list(
+      interactive_plot = interactive_plot,
+      static_plot = static_plot,
+      go_results = NULL
+    ))
+  }
+  
   # Ensure no duplicates and valid formatting
   data <- data %>%
     distinct(Entrez, Contrast, .keep_all = TRUE)
@@ -422,7 +440,9 @@ generate_enrichment_plot_atac <- function(gene_lists, de_results_df, universe_en
     
     # Split the peak list into Entrez IDs
     entrez_ids <- unlist(strsplit(peak_list, "/"))
-    
+    # Pre-filter de_results_df once for relevant contrasts
+    de_results_df_filtered <- de_results_df %>%
+      filter(!is.na(ENTREZID) & ENTREZID != "")
     # Filter de_results_df based on contrast and direction
     de_sub <- de_results_df_filtered %>%
       filter(grepl(contrast_base, Contrast),
@@ -587,7 +607,7 @@ generate_kegg_enrichment_plot_atac <- function(gene_lists, de_results_df, univer
   # Ensure gene lists are named and define contrast order
   if (is.null(names(gene_lists))) stop("Each gene list must be named!")
   contrast_order <- names(gene_lists)
-  
+  force(de_results_df)
   # FIX: Handle both Ensembl and Entrez ID formats
   sample_id <- de_results_df$Entrez.ID[!is.na(de_results_df$Entrez.ID)][1]
   if (grepl("^ENSMUSG|^ENSG", sample_id)) {
@@ -637,7 +657,7 @@ generate_kegg_enrichment_plot_atac <- function(gene_lists, de_results_df, univer
     data = data,
     fun = "enrichKEGG",
     universe = na.omit(universe_entrez),
-    organism = "mmu",  # Assuming human (Homo sapiens) for KEGG enrichment
+    organism = report_params[["organism"]], 
     keyType = "ncbi-geneid",
     pvalueCutoff = significance_threshold
   )

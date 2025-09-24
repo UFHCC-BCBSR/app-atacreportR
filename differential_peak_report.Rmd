@@ -42,14 +42,17 @@ library(scales)
 library(stringr)
 library(downloadthis)
 
-source("R/ATACseq_report_funcs.R", local = knitr::knit_global())
+source("R/report_funcs.R", local = knitr::knit_global())
 select <- dplyr::select
 
 # Edit this for interactive use
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
-params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
+# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
+# params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
+params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-peakreporter_params.txt"
+#params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-all-in-one_params.txt"
 ```
 
 ```{r parse-params, include=FALSE}
@@ -1118,7 +1121,6 @@ preprocess_result <- function(df, contrast) {
   groups <- str_trim(str_split(gsub("\\.", "-", contrast), "_vs_", simplify = TRUE))
   df$group1 <- groups[1]
   df$group2 <- groups[2]
-  
   df$Accessibility <- case_when(
     df$FDR < 0.05 & df$logFC > 1  ~ paste0("More accessible in ", df$group1),
     df$FDR < 0.05 & df$logFC < -1 ~ paste0("More accessible in ", df$group2),
@@ -1315,13 +1317,7 @@ for (contrast in names(results_list)) {
 }
 ```
 
-## Gene Ontology (GO) Enrichment Analysis
-
-Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that term.
-
-To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
-
-```{r GO, eval = !params$test_mode}
+```{r prep-for-enrich, eval = !params$test_mode}
 de_results_df <- bind_rows(lapply(names(results_list), function(contrast) {
   df <- results_list[[contrast]][["table"]]
   df$Contrast <- contrast  # Add the contrast column
@@ -1352,6 +1348,12 @@ if ("geneId" %in% colnames(de_results_df)) {
   stop("Cannot find gene ID column in results")
 }
 ```
+
+## Gene Ontology (GO) Enrichment Analysis
+
+Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that term.
+
+To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 
 ```{r run GO enrich, eval = !params$test_mode}
 # Perform GO Enrichment for BP, MF, CC
@@ -1446,10 +1448,14 @@ kegg_results <- tryCatch({
 # Only proceed if kegg_results is not NULL
 if (!is.null(kegg_results)) {
   download_button_png(kegg_results$static_plot, "kegg_enrichment_plot", height = 12)
-  kegg_results$interactive_plot
-  
+}
+
+# Display interactive plot (renders automatically when outside braces)
+if (!is.null(kegg_results)) kegg_results$interactive_plot
+
+# Continue with data processing
+if (!is.null(kegg_results)) {
   kegg_results[["kegg_results"]]$GeneSymbols <- gsub("<br>", "/", kegg_results[["kegg_results"]]$GeneSymbols)
-  
   kegg_results[["kegg_results"]] %>%
     downloadthis::download_this(
       output_name = paste(report_params$seqID, "KEGG_results", sep = "_"),

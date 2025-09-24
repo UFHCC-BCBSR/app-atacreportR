@@ -46,6 +46,41 @@ generate_peak_annotation <- function(dds, organism) {
   # Convert to data frame
   anno_df <- as.data.frame(peak_anno)
   
+  # Add this before the gene mapping:
+  # Restore missing peaks with minimal annotation
+  annotated_indices <- as.numeric(rownames(anno_df))
+  all_indices <- 1:length(consensus_peaks)
+  missing_indices <- setdiff(all_indices, annotated_indices)
+  
+  if(length(missing_indices) > 0) {
+    missing_ranges <- consensus_peaks[missing_indices]
+    
+    # Create minimal annotation for missing peaks
+    missing_df <- data.frame(
+      seqnames = as.character(seqnames(missing_ranges)),
+      start = start(missing_ranges),
+      end = end(missing_ranges),
+      width = width(missing_ranges),
+      strand = as.character(strand(missing_ranges)),
+      annotation = "No_annotation_available",
+      geneChr = as.character(seqnames(missing_ranges)),
+      geneStart = start(missing_ranges),
+      geneEnd = end(missing_ranges),
+      geneLength = width(missing_ranges),
+      geneStrand = as.character(strand(missing_ranges)),
+      geneId = NA,
+      distanceToTSS = NA,
+      row.names = as.character(missing_indices)
+    )
+    
+    # Add any other columns that exist in anno_df
+    missing_cols <- setdiff(colnames(anno_df), colnames(missing_df))
+    missing_df[missing_cols] <- NA
+    
+    anno_df <- rbind(anno_df, missing_df)
+    anno_df <- anno_df[order(as.numeric(rownames(anno_df))), ]
+  }
+  
   # ADD GENE SYMBOL MAPPING
   cat("Adding gene symbol mapping...\n")
   anno_df$Gene.Name <- mapIds(

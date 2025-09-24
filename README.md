@@ -36,7 +36,7 @@ Interactive Shiny application that allows users to:
 - Generate properly formatted parameter files
 - Submit SLURM jobs with a single click
 
-### 2. Analysis Report (`atac_edgeR_report.Rmd`)
+### 2. Analysis Report (`differential_peak_report.Rmd`)
 R Markdown document that reads the parameter file and generates a comprehensive HTML report including:
 - Sample quality control metrics
 - Peak annotation and genomic distribution
@@ -67,7 +67,7 @@ The analysis is organized into modular R scripts sourced by the main report:
 
 ```
 ├── app.R                              # Main Shiny application
-├── atac_edgeR_report.Rmd             # Analysis report template
+├── differential_peak_report.Rmd             # Analysis report template
 ├── render-report-with-params.sbatch  # SLURM submission script
 ├── R/                                # Analysis modules
 │   ├── data_preparation.R

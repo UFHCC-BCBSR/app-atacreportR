@@ -91,7 +91,27 @@ prepare_analysis_data <- function(report_params) {
   if (created_anno) {
     anno_path <- file.path(outdir, paste0(seqID, ".annotated.consensus-peaks.txt"))
     cat("💾 Saving peak annotation to:", anno_path, "\n")
-    utils::write.table(peak_anno, file = anno_path, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    # Fix list columns before writing
+    peak_anno_clean <- peak_anno
+    
+    # Convert any list columns to character strings
+    for (col in names(peak_anno_clean)) {
+      if (is.list(peak_anno_clean[[col]])) {
+        # Convert list column to character, handling NULLs and NAs
+        peak_anno_clean[[col]] <- sapply(peak_anno_clean[[col]], function(x) {
+          if (is.null(x) || length(x) == 0) {
+            return(NA_character_)
+          } else if (length(x) == 1) {
+            return(as.character(x))
+          } else {
+            return(paste(x, collapse = ";"))
+          }
+        })
+      }
+    }
+    
+    utils::write.table(peak_anno_clean, file = anno_path, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
   } else {
     cat("Peak annotation was provided by user; not overwriting on disk.\n")
   }

@@ -2009,7 +2009,6 @@ server <- function(input, output, session) {
       bigwig_files_key <- "bigwig_files"
       contrasts_key <- "contrasts"
     }
-    
     # Generate parameters using the appropriate field values
     lines <- c(lines, paste("--seqID", shQuote(seqID_field)))
     lines <- c(lines, paste("--report_title", shQuote(report_title_field)))
@@ -2020,12 +2019,10 @@ server <- function(input, output, session) {
     lines <- c(lines, paste("--user_email", shQuote(user_email_field)))
     lines <- c(lines, paste("--min_count_for_filtering", min_count_field))
     lines <- c(lines, paste("--min_prop_for_filtering", min_prop_field))
-    
     # Sample sheet
     if (!is.null(values$selected_files[[sample_sheet_key]])) {
       lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files[[sample_sheet_key]])))
     }
-    
     # Report metadata parameters (only add if not empty) - these are the same for all modes
     if (!is.null(input$PI) && input$PI != "") {
       lines <- c(lines, paste("--PI", shQuote(input$PI)))
@@ -2058,6 +2055,22 @@ server <- function(input, output, session) {
       lines <- c(lines, paste("--Report_Reviewed_By", shQuote(input$Report_Reviewed_By)))
     }
     
+    # Peak files (required for all modes)
+    if (!is.null(values$selected_files$peak_files)) {
+      peak_pairs <- c()
+      sample_df <- read.csv(values$selected_files[[sample_sheet_key]], stringsAsFactors = FALSE)
+      for (peak_file in values$selected_files$peak_files) {
+        peak_basename <- basename(peak_file)
+        for (sample in sample_df$sample) {
+          if (grepl(sample, peak_basename, fixed = TRUE)) {
+            peak_pairs <- c(peak_pairs, paste0(sample, ":", peak_file))
+            break
+          }
+        }
+      }
+      lines <- c(lines, paste("--peak_files", shQuote(paste(peak_pairs, collapse = ","))))
+    }
+    
     # BigWig files with sample matching
     if (!is.null(bigwig_files_key) && !is.null(values$selected_files[[bigwig_files_key]])) {
       bigwig_pairs <- c()
@@ -2074,7 +2087,6 @@ server <- function(input, output, session) {
       }
       lines <- c(lines, paste("--bigwig_files", shQuote(paste(bigwig_pairs, collapse = ","))))
     }
-    
     # Contrasts
     if (!is.null(values$selected_files[[contrasts_key]])) {
       lines <- c(lines, paste("--contrasts", shQuote(values$selected_files[[contrasts_key]])))
@@ -2093,24 +2105,10 @@ server <- function(input, output, session) {
         lines <- c(lines, paste("--peak_annotation", shQuote(values$selected_files$existing_annotation)))
       }
     } else {
-      # Add peak files and BAM files for other modes (prepare_only and prepare_and_analyze)
-      if (!is.null(values$selected_files$peak_files)) {
-        peak_pairs <- c()
-        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
-        for (peak_file in values$selected_files$peak_files) {
-          peak_basename <- basename(peak_file)
-          for (sample in sample_df$sample) {
-            if (grepl(sample, peak_basename, fixed = TRUE)) {
-              peak_pairs <- c(peak_pairs, paste0(sample, ":", peak_file))
-              break
-            }
-          }
-        }
-        lines <- c(lines, paste("--peak_files", shQuote(paste(peak_pairs, collapse = ","))))
-      }
+      # Add BAM files for other modes (prepare_only and prepare_and_analyze)
       if (!is.null(values$selected_files$bam_files)) {
         bam_pairs <- c()
-        sample_df <- read.csv(values$selected_files$sample_sheet, stringsAsFactors = FALSE)
+        sample_df <- read.csv(values$selected_files[[sample_sheet_key]], stringsAsFactors = FALSE)
         for (bam_file in values$selected_files$bam_files) {
           bam_basename <- basename(bam_file)
           for (sample in sample_df$sample) {
@@ -2123,7 +2121,6 @@ server <- function(input, output, session) {
         lines <- c(lines, paste("--bam_files", shQuote(paste(bam_pairs, collapse = ","))))
       }
     }
-    
     # Optional QC files (same for all modes)
     if (!is.null(values$selected_files$qc_flagstat_dir)) {
       lines <- c(lines, paste("--qc_flagstat_dir", shQuote(values$selected_files$qc_flagstat_dir)))
@@ -2131,7 +2128,6 @@ server <- function(input, output, session) {
     if (!is.null(values$selected_files$qc_frip_file)) {
       lines <- c(lines, paste("--qc_frip_file", shQuote(values$selected_files$qc_frip_file)))
     }
-    
     # Optional URLs (same for all modes)
     if (!is.null(input$raw_seq_URL) && input$raw_seq_URL != "") {
       lines <- c(lines, paste("--raw_seq_URL", shQuote(input$raw_seq_URL)))
@@ -2139,7 +2135,6 @@ server <- function(input, output, session) {
     if (!is.null(input$multiqc_url) && input$multiqc_url != "") {
       lines <- c(lines, paste("--multiqc_url", shQuote(input$multiqc_url)))
     }
-    
     return(lines)
   }
   # Generate params file

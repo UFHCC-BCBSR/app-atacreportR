@@ -11,7 +11,7 @@
 #SBATCH --qos=cancercenter-dept-b
 
 # Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title" --email user@ufl.edu
-# NOTE: Run this script from the directory containing atac_edgeR_report.Rmd
+# NOTE: Run this script from the directory containing differential_peak_report.Rmd
 
 # Parse command line arguments
 PARAMS_FILE=""
@@ -106,7 +106,7 @@ Rscript -e "
 .libPaths(c('/blue/cancercenter-dept/shared/R/library/4.5/', '/usr/local/lib/R/site-library', '/usr/lib/R/site-library', '/usr/lib/R/library'))
 Sys.setenv(RSTUDIO_PANDOC='$RSTUDIO_PANDOC')
 rmarkdown::render(
-  'atac_edgeR_report.Rmd',
+  'differential_peak_report.Rmd',
   params = list(
     params_file = '$PARAMS_FILE',
     report_title = '$REPORT_TITLE'

@@ -42,7 +42,7 @@ library(scales)
 library(stringr)
 library(downloadthis)
 
-source("R/ATACseq_report_funcs.R", local = knitr::knit_global())
+source("R/report_funcs.R", local = knitr::knit_global())
 select <- dplyr::select
 
 # Edit this for interactive use

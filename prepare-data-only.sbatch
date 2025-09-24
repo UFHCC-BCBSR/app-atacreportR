@@ -10,15 +10,20 @@
 #SBATCH --account=cancercenter-dept
 #SBATCH --qos=cancercenter-dept-b
 
-# Usage: sbatch prepare-data-only.sbatch --params-file my-params.txt
+# Usage: sbatch prepare-data-only.sbatch --params-file my-params.txt --email user@ufl.edu
 
 # Parse command line arguments
 PARAMS_FILE=""
+USER_EMAIL=""
 
 while [[ $# -gt 0 ]]; do
 case $1 in
   --params-file)
     PARAMS_FILE="$2"
+    shift 2
+    ;;
+  --email)
+    USER_EMAIL="$2"
     shift 2
     ;;
   *)
@@ -27,6 +32,13 @@ case $1 in
     ;;
 esac
 done
+
+# Set email notification if provided
+if [[ -n "$USER_EMAIL" ]]; then
+  echo "Setting up email notifications to: $USER_EMAIL"
+  # Use scontrol to add email notification to the running job
+  scontrol update JobId=$SLURM_JOB_ID MailUser=$USER_EMAIL MailType=END,FAIL
+fi
 
 # Validate required arguments
 if [[ -z "$PARAMS_FILE" ]]; then
@@ -44,6 +56,9 @@ echo "ATAC-seq Data Preparation Only"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Params file: $PARAMS_FILE"
+if [[ -n "$USER_EMAIL" ]]; then
+  echo "Email notifications: $USER_EMAIL"
+fi
 echo "Start time: $(date)"
 echo "=========================================="
 
@@ -66,7 +81,7 @@ fi
 echo "Project ID: $SEQID"
 
 # Run data preparation using the R script
-Rscript R/run_prepare_data_only.R "$PARAMS_FILE"
+Rscript scripts/run_prepare_data_only.R "$PARAMS_FILE"
 
 if [[ $? -eq 0 ]]; then
   OUTPUT_PATH=$(grep "^--output-path\|^--output_path" "$PARAMS_FILE" | cut -d"'" -f2 | head -1 | xargs)

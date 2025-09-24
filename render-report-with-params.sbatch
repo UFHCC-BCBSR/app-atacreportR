@@ -10,13 +10,14 @@
 #SBATCH --account=cancercenter-dept
 #SBATCH --qos=cancercenter-dept-b
 
-# Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title"
+# Usage: sbatch render-report-with-params.sbatch --params-file my-test-app-params.txt --title "My Custom Report Title" --email user@ufl.edu
 # NOTE: Run this script from the directory containing atac_edgeR_report.Rmd
 
 # Parse command line arguments
 PARAMS_FILE=""
 REPORT_TITLE="ATAC-seq Differential Accessibility Analysis"
 OUTPUT_DIR=""
+USER_EMAIL=""
 
 while [[ $# -gt 0 ]]; do
 case $1 in
@@ -32,12 +33,23 @@ case $1 in
     OUTPUT_DIR="$2"
     shift 2
     ;;
+  --email)
+    USER_EMAIL="$2"
+    shift 2
+    ;;
   *)
     echo "Unknown parameter: $1"
     exit 1
     ;;
 esac
 done
+
+# Set email notification if provided
+if [[ -n "$USER_EMAIL" ]]; then
+  echo "Setting up email notifications to: $USER_EMAIL"
+  # Use scontrol to add email notification to the running job
+  scontrol update JobId=$SLURM_JOB_ID MailUser=$USER_EMAIL MailType=END,FAIL
+fi
 
 # Validate required arguments
 if [[ -z "$PARAMS_FILE" ]]; then
@@ -56,6 +68,9 @@ echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Params file: $PARAMS_FILE"
 echo "Report title: $REPORT_TITLE"
+if [[ -n "$USER_EMAIL" ]]; then
+  echo "Email notifications: $USER_EMAIL"
+fi
 echo "Start time: $(date)"
 echo "=========================================="
 
@@ -80,12 +95,10 @@ SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
 if [[ -z "$SEQID" ]]; then
   SEQID="ATAC_Report"
 fi
-
 OUTPUT_FILE="${SEQID}_Report.html"
 if [[ -n "$OUTPUT_DIR" ]]; then
   OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_FILE"
 fi
-
 echo "Output file: $OUTPUT_FILE"
 
 # Render the report with parameters

@@ -4,6 +4,20 @@ run_differential_analysis <- function(dge, peaks_anno, contrast_strings, report_
 row.names(peaks_anno) <- peaks_anno$interval
 dge$genes <- peaks_anno[rownames(dge), ]
 
+# Convert NULL values in Gene.Name to NA_character_
+if (!is.null(dge$genes$Gene.Name)) {
+  # Handle case where Gene.Name might be a list column with NULL elements
+  if (is.list(dge$genes$Gene.Name)) {
+    dge$genes$Gene.Name <- sapply(dge$genes$Gene.Name, function(x) {
+      if (is.null(x) || length(x) == 0) NA_character_ else as.character(x[1])
+    })
+  } else {
+    dge$genes$Gene.Name <- as.character(dge$genes$Gene.Name)
+  }
+} else {
+  dge$genes$Gene.Name <- rep(NA_character_, nrow(dge$genes))
+}
+
 # Run differential analysis per contrast
 # Extract contrasts from strings like "1. Heat vs Control"
 contrast_list <- lapply(contrast_strings, function(x) {

@@ -572,6 +572,7 @@ ui <- fluidPage(
   
   # Validation and Generation
 # Validation and Generation - now for ALL modes including prepare_only
+# Validation and Generation - now for ALL modes including prepare_only
 div(class = "step-section",
     h2("Generate Parameters", style = "text-align: center; margin-bottom: 30px;"),
     div(style = "text-align: center;",
@@ -594,7 +595,11 @@ div(class = "step-section",
     br(),
     uiOutput("validation_status"),
     br(),
-    verbatimTextOutput("params_preview")
+    verbatimTextOutput("params_preview"),
+    br(),
+    # Add permanent job status outputs
+    uiOutput("job_submission_status"),
+    uiOutput("expected_output_files")
 )
 ) 
 
@@ -2137,26 +2142,97 @@ server <- function(input, output, session) {
       if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
         job_output <- paste(result, collapse = "\n")
         job_id_match <- regexpr("Submitted batch job ([0-9]+)", job_output)
-        if (job_id_match > 0) {
-          job_id <- regmatches(job_output, job_id_match)
-          job_id <- gsub("Submitted batch job ", "", job_id)
-          showNotification(paste(job_description, "submitted successfully! Job ID:", job_id,
-                                 "\nCommand:", full_command,
-                                 "\nParams file:", final_params_path),
-                           type = "message", duration = 15)
+        job_id <- if (job_id_match > 0) {
+          gsub("Submitted batch job ", "", regmatches(job_output, job_id_match))
         } else {
-          showNotification(paste(job_description, "submitted successfully!",
-                                 "\nCommand:", full_command,
-                                 "\nParams file:", final_params_path),
-                           type = "message")
+          "Unknown"
         }
+        
+        # Show temporary notification
+        showNotification(paste(job_description, "submitted successfully! Job ID:", job_id), 
+                         type = "message", duration = 10)
+        
+        # Update permanent UI elements
+        output$job_submission_status <- renderUI({
+          div(style = "background-color: #d4edda; padding: 15px; border-radius: 5px; margin-top: 15px;",
+              tags$h4("✅ Job Submitted Successfully!", style = "color: #155724; margin-top: 0;"),
+              tags$p(strong("Job ID: "), job_id),
+              tags$p(strong("Command: "), tags$code(full_command)),
+              tags$p(strong("Parameters file: "), tags$code(final_params_path)),
+              if (input$analysis_mode == "prepare_only") {
+                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
+              } else {
+                tags$p(strong("Check job status: "), tags$code(paste0("squeue -j ", job_id)))
+              }
+          )
+        })
+        
+        # Show expected output files
+        output$expected_output_files <- renderUI({
+          if (input$analysis_mode == "prepare_only") {
+            # Data preparation outputs
+            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
+                tags$h4("📁 Expected Output Files", style = "color: #004085; margin-top: 0;"),
+                tags$p("When the job completes, these files will be created:"),
+                tags$ul(
+                  tags$li(tags$strong("DDS object: "), tags$code(file.path(output_path, paste0(seqID, ".dds.RData")))),
+                  tags$li(tags$strong("Consensus peaks: "), tags$code(file.path(output_path, paste0(seqID, ".consensus-peaks.txt")))),
+                  tags$li(tags$strong("Annotated peaks: "), tags$code(file.path(output_path, paste0(seqID, ".annotated.consensus-peaks.txt"))))
+                ),
+                tags$p(style = "margin-top: 15px; color: #666;", 
+                       "💡 These files can be used as input for differential analysis in 'Analysis from Existing Data' mode.")
+            )
+          } else {
+            # Analysis outputs
+            report_filename <- paste0(seqID, "_Report.html")
+            report_path <- file.path(output_path, report_filename)
+            div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 10px;",
+                tags$h4("📊 Expected Output Files", style = "color: #004085; margin-top: 0;"),
+                tags$p("When the job completes, the main output will be:"),
+                tags$ul(
+                  tags$li(tags$strong("Analysis Report: "), tags$code(report_path))
+                ),
+                tags$p("Additional files (results tables, plots, etc.) will be created in the same directory."),
+                tags$p(style = "margin-top: 15px; color: #666;", 
+                       "💡 The HTML report will contain all analysis results, plots, and downloadable data tables.")
+            )
+          }
+        })
+        
       } else {
-        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"),
-                           "\nCommand attempted:", full_command)
+        error_msg <- paste("SLURM submission failed:", paste(result, collapse = "\n"))
+        
+        # Show error in permanent UI
+        output$job_submission_status <- renderUI({
+          div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
+              tags$h4("❌ Job Submission Failed", style = "color: #721c24; margin-top: 0;"),
+              tags$p(strong("Error: "), error_msg),
+              tags$p(strong("Command attempted: "), tags$code(full_command))
+          )
+        })
+        
+        output$expected_output_files <- renderUI({
+          div() # Empty div to clear any previous content
+        })
+        
         showNotification(error_msg, type = "error", duration = 15)
       }
     }, error = function(e) {
-      showNotification(paste("Error submitting SLURM job:", e$message), type = "error")
+      error_msg <- paste("Error submitting SLURM job:", e$message)
+      
+      # Show error in permanent UI
+      output$job_submission_status <- renderUI({
+        div(style = "background-color: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 15px;",
+            tags$h4("❌ Job Submission Error", style = "color: #721c24; margin-top: 0;"),
+            tags$p(strong("Error: "), error_msg)
+        )
+      })
+      
+      output$expected_output_files <- renderUI({
+        div() # Empty div to clear any previous content
+      })
+      
+      showNotification(error_msg, type = "error")
     })
   })
   observe({

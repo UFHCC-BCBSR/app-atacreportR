@@ -51,7 +51,8 @@ select <- dplyr::select
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
 # params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
 # params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
-params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-prep-data_params.txt"
+params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-peakreporter_params.txt"
+#params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-all-in-one_params.txt"
 ```
 
 ```{r parse-params, include=FALSE}
@@ -1120,7 +1121,6 @@ preprocess_result <- function(df, contrast) {
   groups <- str_trim(str_split(gsub("\\.", "-", contrast), "_vs_", simplify = TRUE))
   df$group1 <- groups[1]
   df$group2 <- groups[2]
-  
   df$Accessibility <- case_when(
     df$FDR < 0.05 & df$logFC > 1  ~ paste0("More accessible in ", df$group1),
     df$FDR < 0.05 & df$logFC < -1 ~ paste0("More accessible in ", df$group2),
@@ -1448,10 +1448,14 @@ kegg_results <- tryCatch({
 # Only proceed if kegg_results is not NULL
 if (!is.null(kegg_results)) {
   download_button_png(kegg_results$static_plot, "kegg_enrichment_plot", height = 12)
-  kegg_results$interactive_plot
-  
+}
+
+# Display interactive plot (renders automatically when outside braces)
+if (!is.null(kegg_results)) kegg_results$interactive_plot
+
+# Continue with data processing
+if (!is.null(kegg_results)) {
   kegg_results[["kegg_results"]]$GeneSymbols <- gsub("<br>", "/", kegg_results[["kegg_results"]]$GeneSymbols)
-  
   kegg_results[["kegg_results"]] %>%
     downloadthis::download_this(
       output_name = paste(report_params$seqID, "KEGG_results", sep = "_"),

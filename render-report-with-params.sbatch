@@ -90,15 +90,14 @@ pandoc --version
 # Set RSTUDIO_PANDOC
 export RSTUDIO_PANDOC=$(which pandoc | xargs dirname)
 
-# Set output file name
+# Set output file name using path from params file
 SEQID=$(grep "^--seqID" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
 if [[ -z "$SEQID" ]]; then
   SEQID="ATAC_Report"
 fi
-OUTPUT_FILE="${SEQID}_Report.html"
-if [[ -n "$OUTPUT_DIR" ]]; then
-  OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_FILE"
-fi
+OUTPUT_PATH=$(grep "^--output-path" "$PARAMS_FILE" | cut -d"'" -f2 | xargs)
+OUTPUT_FILE="$OUTPUT_PATH/${SEQID}_Report.html"
+
 echo "Output file: $OUTPUT_FILE"
 
 # Render the report with parameters

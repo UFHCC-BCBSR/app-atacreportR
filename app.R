@@ -208,6 +208,26 @@ ui <- fluidPage(
         )
       )
   ),
+  # Peak Files (required for all modes)
+  div(class = "step-section",
+      h3("Peak Files", style = "text-align: center; margin-bottom: 20px;"),
+      div(class = "param-group",
+          h4("Peak Files"),
+          p("Select multiple peak files (.broadPeak or .narrowPeak format). Files will be matched to samples by basename:"),
+          conditionalPanel(
+            condition = "output.authenticated",
+            textInput("custom_path_peak_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+            shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
+            uiOutput("selected_peak_files")
+          ),
+          conditionalPanel(
+            condition = "!output.authenticated",
+            div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+            )
+          )
+      )
+  ),
   
   # Conditional file inputs based on analysis mode
   conditionalPanel(
@@ -271,24 +291,6 @@ ui <- fluidPage(
             uiOutput("active_sample_sheet_status")
         ),
         
-        # Peak Files (required for data preparation)
-        div(class = "param-group",
-            h4("Peak Files"),
-            p("Select multiple peak files (.broadPeak format). Files will be matched to samples by basename:"),
-            conditionalPanel(
-              condition = "output.authenticated",
-              textInput("custom_path_peak_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
-
-              shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
-              uiOutput("selected_peak_files")
-            ),
-            conditionalPanel(
-              condition = "!output.authenticated",
-              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
-                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
-              )
-            )
-        ),
         
         # BAM Files (required for data preparation)  
         div(class = "param-group",
@@ -1789,11 +1791,6 @@ server <- function(input, output, session) {
       min_count_field <- NULL  # Not needed for prepare_only
       min_prop_field <- NULL   # Not needed for prepare_only
       contrasts_text_field <- NULL  # Not needed for prepare_only
-      
-      # Check for data preparation requirements
-      if (is.null(values$selected_files$peak_files)) {
-        messages <- c(messages, "❌ Peak files are required")
-      }
       if (is.null(values$selected_files$bam_files)) {
         messages <- c(messages, "❌ BAM files are required for data preparation")
       }
@@ -1811,11 +1808,7 @@ server <- function(input, output, session) {
       min_count_field <- input$min_count_for_filtering
       min_prop_field <- input$min_prop_for_filtering
       contrasts_text_field <- input$contrasts_text
-      
-      # Check for data preparation requirements
-      if (is.null(values$selected_files$peak_files)) {
-        messages <- c(messages, "❌ Peak files are required")
-      }
+  
       # Check that either DDS file OR BAM files are provided for non-analyze modes
       has_dds <- !is.null(values$selected_files$dds_file)
       has_bam <- !is.null(values$selected_files$bam_files)
@@ -1845,6 +1838,9 @@ server <- function(input, output, session) {
     # Check sample sheet
     if (is.null(values$selected_files[[sample_sheet_key]])) {
       messages <- c(messages, "❌ Sample sheet is required")
+    }
+    if (is.null(values$selected_files$peak_files)) {
+      messages <- c(messages, "❌ Peak files are required")
     }
     
     # Check BigWig files (only for analysis modes)
@@ -1893,8 +1889,8 @@ server <- function(input, output, session) {
               messages <- c(messages, paste("✅", matched_bigwigs, "samples successfully matched to BigWig files"))
             }
           }
-          # Check peak files matching (only for non-analyze modes)
-          if (input$analysis_mode != "analyze_only" && !is.null(values$selected_files$peak_files)) {
+          # Check peak files matching (required for all modes)
+          if (!is.null(values$selected_files$peak_files)) {
             peak_basenames <- basename(values$selected_files$peak_files)
             matched_peaks <- 0
             for (sample in sample_df$sample) {

@@ -208,26 +208,6 @@ ui <- fluidPage(
         )
       )
   ),
-  # Peak Files (required for all modes)
-  div(class = "step-section",
-      h3("Peak Files", style = "text-align: center; margin-bottom: 20px;"),
-      div(class = "param-group",
-          h4("Peak Files"),
-          p("Select multiple peak files (.broadPeak or .narrowPeak format). Files will be matched to samples by basename:"),
-          conditionalPanel(
-            condition = "output.authenticated",
-            textInput("custom_path_peak_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
-            shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
-            uiOutput("selected_peak_files")
-          ),
-          conditionalPanel(
-            condition = "!output.authenticated",
-            div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
-                tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
-            )
-          )
-      )
-  ),
   
   # Conditional file inputs based on analysis mode
   conditionalPanel(
@@ -331,6 +311,31 @@ ui <- fluidPage(
               )
           )
         ),
+        # ADD PEAK FILES HERE - for non-analyze_only modes
+        div(class = "param-group",
+            h4("Peak Files"),
+            # Add peak caller selection
+            fluidRow(
+              column(6, 
+                     selectInput("peak_caller", "Peak Caller", 
+                                 choices = list("MACS2" = "macs2", "Genrich" = "genrich"), 
+                                 selected = "macs2")
+              )
+            ),
+            p("Select multiple peak files (.broadPeak or .narrowPeak format). Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              textInput("custom_path_peak_files", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+              shinyFilesButton("browse_peak_files", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_peak_files")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
         
         # Contrasts (required only for prepare_and_analyze mode)
         conditionalPanel(
@@ -419,6 +424,16 @@ ui <- fluidPage(
                   shinyFilesButton("browse_existing_annotation", "Browse Annotation File", "Select annotation file", class = "btn-info", multiple = FALSE),
                   uiOutput("selected_existing_annotation")
                 )
+            ),
+            div(style = "border: 1px solid #6f42c1; padding: 15px; margin: 10px 0; border-radius: 5px; background-color: #f8f9ff;",
+                h5("Spike-in DDS Object", tags$span("(Optional)", style = "color: #6c757d; font-size: 0.8em;")),
+                p("Select spike-in DDS file for spike-in normalization. If not provided, TMM normalization will be used:"),
+                conditionalPanel(
+                  condition = "output.authenticated",
+                  textInput("custom_path_spikein_dds", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+                  shinyFilesButton("browse_spikein_dds", "Browse Spike-in DDS File", "Select spike-in DDS RData file", class = "btn-info", multiple = FALSE),
+                  uiOutput("selected_spikein_dds")
+                )
             )
         ),
         
@@ -462,6 +477,31 @@ ui <- fluidPage(
 
               shinyFilesButton("browse_bigwig_files_analyze", "Browse BigWig Files", "Select multiple BigWig files", class = "btn-info", multiple = TRUE),
               uiOutput("selected_bigwig_files_analyze")
+            ),
+            conditionalPanel(
+              condition = "!output.authenticated",
+              div(style = "padding: 10px; text-align: center; color: #856404; font-size: 12px;",
+                  tags$i(class = "fa fa-lock"), " Login above to browse HiPerGator files"
+              )
+            )
+        ),
+        # ADD PEAK FILES HERE - for analyze_only mode
+        div(class = "param-group",
+            h4("Peak Files"),
+            # Add peak caller selection
+            fluidRow(
+              column(6, 
+                     selectInput("peak_caller_analyze", "Peak Caller", 
+                                 choices = list("MACS2" = "macs2", "Genrich" = "genrich"), 
+                                 selected = "macs2")
+              )
+            ),
+            p("Select multiple peak files (.broadPeak or .narrowPeak format). Files will be matched to samples by basename:"),
+            conditionalPanel(
+              condition = "output.authenticated",
+              textInput("custom_path_peak_files_analyze", "Directory Path:", value = "", placeholder = "Enter path relative to volume..."),
+              shinyFilesButton("browse_peak_files_analyze", "Browse Peak Files", "Select multiple peak files", class = "btn-info", multiple = TRUE),
+              uiOutput("selected_peak_files_analyze")
             ),
             conditionalPanel(
               condition = "!output.authenticated",
@@ -531,9 +571,7 @@ ui <- fluidPage(
         )
     )
   ),
-  
-  # Report Metadata
-  # Report Metadata - hide in prepare_only mode
+    # Report Metadata - hide in prepare_only mode
   conditionalPanel(
     condition = "input.analysis_mode != 'prepare_only'",
     div(class = "step-section",
@@ -827,8 +865,10 @@ server <- function(input, output, session) {
         shinyFileChoose(input, "browse_sample_sheet_analyze", roots = group_volumes, session = session, filetypes = c("", "csv"))
         shinyFileChoose(input, "browse_bigwig_files_analyze", roots = group_volumes, session = session, filetypes = c("", "bigWig", "bw"))
         shinyFileChoose(input, "browse_contrasts_analyze", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"))
-        
+        shinyFileChoose(input, "browse_spikein_dds", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"))
+        shinyFileChoose(input, "browse_peak_files_analyze", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"))
         setup_file_browser("browse_contrasts_optional", "contrasts_optional")
+        setup_file_browser("browse_peak_files_analyze", "peak_files_analyze", multiple = TRUE)
         # Custom path observers for all file browsers
         observe({
           if (!is.null(input$custom_path_sample_sheet) && input$custom_path_sample_sheet != "") {
@@ -845,6 +885,11 @@ server <- function(input, output, session) {
         observe({
           if (!is.null(input$custom_path_peak_files) && input$custom_path_peak_files != "") {
             shinyFileChoose(input, "browse_peak_files", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"), defaultPath = input$custom_path_peak_files)
+          }
+        })
+        observe({
+          if (!is.null(input$custom_path_peak_files_analyze) && input$custom_path_peak_files_analyze != "") {
+            shinyFileChoose(input, "browse_peak_files_analyze", roots = group_volumes, session = session, filetypes = c("", "broadPeak", "narrowPeak"), defaultPath = input$custom_path_peak_files_analyze)
           }
         })
         
@@ -919,6 +964,11 @@ server <- function(input, output, session) {
             shinyFileChoose(input, "browse_contrasts_analyze", roots = group_volumes, session = session, filetypes = c("", "txt", "csv"), defaultPath = input$custom_path_contrasts_analyze)
           }
         })
+        observe({
+          if (!is.null(input$custom_path_spikein_dds) && input$custom_path_spikein_dds != "") {
+            shinyFileChoose(input, "browse_spikein_dds", roots = group_volumes, session = session, filetypes = c("", "RData", "rda"), defaultPath = input$custom_path_spikein_dds)
+          }
+        })
       }
       showNotification("Login successful! HiPerGator file browsing enabled.", type = "message")
     } else {
@@ -987,6 +1037,7 @@ server <- function(input, output, session) {
   setup_file_browser("browse_sample_sheet_analyze", "sample_sheet_analyze")
   setup_file_browser("browse_bigwig_files_analyze", "bigwig_files_analyze", multiple = TRUE)
   setup_file_browser("browse_contrasts_analyze", "contrasts_analyze")
+  setup_file_browser("browse_spikein_dds", "spikein_dds")
   
   # File display outputs
   # Sample sheet handling - add this to your server function
@@ -1169,6 +1220,25 @@ server <- function(input, output, session) {
           strong("Selected: "), basename(values$selected_files$sample_sheet_browse),
           tags$br(),
           tags$span(style = "font-size: 10px;", values$selected_files$sample_sheet_browse)
+      )
+    }
+  })
+  output$selected_peak_files_analyze <- renderUI({
+    if (!is.null(values$selected_files$peak_files_analyze)) {
+      files <- values$selected_files$peak_files_analyze
+      div(class = "selected-file",
+          strong(paste("Selected", length(files), "peak files:")),
+          tags$br(),
+          paste(basename(files), collapse = ", ")
+      )
+    }
+  })
+  output$selected_spikein_dds <- renderUI({
+    if (!is.null(values$selected_files$spikein_dds)) {
+      div(class = "selected-file",
+          strong("Selected: "), basename(values$selected_files$spikein_dds),
+          tags$br(),
+          tags$span(style = "font-size: 10px;", values$selected_files$spikein_dds)
       )
     }
   })
@@ -1437,6 +1507,10 @@ server <- function(input, output, session) {
         updateTextInput(session, "seqID", value = params$seqID)
         updateTextInput(session, "seqID_analyze", value = params$seqID)
       }
+      if ("peak_caller" %in% names(params)) {
+        updateSelectInput(session, "peak_caller", selected = params$peak_caller)
+        updateSelectInput(session, "peak_caller_analyze", selected = params$peak_caller)
+      }
       
       if ("report_title" %in% names(params)) {
         cat("DEBUG: Updating report_title to:", params$report_title, "\n")
@@ -1567,7 +1641,9 @@ server <- function(input, output, session) {
       if ("peak_annotation" %in% names(params)) {
         values$selected_files$existing_annotation <- params$peak_annotation  # Use analyze-only key
       }
-      
+      if ("spikein_dds" %in% names(params)) {
+        values$selected_files$spikein_dds <- params$spikein_dds
+      }
       # ===== OTHER FILES - Original mode only =====
       if ("qc_flagstat_dir" %in% names(params)) {
         values$selected_files$qc_flagstat_dir <- params$qc_flagstat_dir
@@ -1768,6 +1844,7 @@ server <- function(input, output, session) {
     if (input$analysis_mode == "analyze_only") {
       # Use analyze-only field names
       seqID_field <- input$seqID_analyze
+      peak_caller_field <- input$peak_caller_analyze
       hipergator_group_field <- input$hipergator_group_analyze
       output_path_field <- input$output_path_analyze
       user_email_field <- input$user_email_analyze
@@ -1782,9 +1859,16 @@ server <- function(input, output, session) {
       sample_sheet_key <- "sample_sheet_analyze"
       bigwig_files_key <- "bigwig_files_analyze"
       contrasts_key <- "contrasts_analyze"
+      # In the analyze-only validation section, you could add:
+      if (!is.null(values$selected_files$spikein_dds)) {
+        messages <- c(messages, "✅ Spike-in DDS provided - will use spike-in normalization")
+      } else {
+        messages <- c(messages, "ℹ️ No spike-in DDS provided - will use TMM normalization")
+      }
     } else if (input$analysis_mode == "prepare_only") {
       # Use original field names for prepare_only
       seqID_field <- input$seqID
+      peak_caller_field <- input$peak_caller
       hipergator_group_field <- input$hipergator_group
       output_path_field <- input$output_path
       user_email_field <- input$user_email
@@ -1802,6 +1886,7 @@ server <- function(input, output, session) {
     } else {
       # Use original field names for prepare_and_analyze
       seqID_field <- input$seqID
+      peak_caller_field <- input$peak_caller
       hipergator_group_field <- input$hipergator_group
       output_path_field <- input$output_path
       user_email_field <- input$user_email
@@ -1956,7 +2041,6 @@ server <- function(input, output, session) {
   })
   
   # Generate params.txt
-  # Updated generate params function that handles different modes
   generate_params_content <- function() {
     lines <- c()
     # Determine which input fields to use based on analysis mode
@@ -1965,6 +2049,7 @@ server <- function(input, output, session) {
       seqID_field <- input$seqID_analyze
       report_title_field <- input$report_title_analyze
       organism_field <- input$organism_analyze
+      peak_caller_field <- input$peak_caller_analyze
       annotation_db_field <- input$annotation_db_analyze
       hipergator_group_field <- input$hipergator_group_analyze
       output_path_field <- input$output_path_analyze
@@ -1979,6 +2064,7 @@ server <- function(input, output, session) {
     } else if (input$analysis_mode == "prepare_only") {
       # Use original field names for prepare_only
       seqID_field <- input$seqID
+      peak_caller_field <- input$peak_caller
       report_title_field <- input$report_title
       organism_field <- input$organism
       annotation_db_field <- input$annotation_db
@@ -1995,6 +2081,7 @@ server <- function(input, output, session) {
     } else {
       # Use original field names for prepare_and_analyze
       seqID_field <- input$seqID
+      peak_caller_field <- input$peak_caller
       report_title_field <- input$report_title
       organism_field <- input$organism
       annotation_db_field <- input$annotation_db
@@ -2009,20 +2096,29 @@ server <- function(input, output, session) {
       bigwig_files_key <- "bigwig_files"
       contrasts_key <- "contrasts"
     }
+    
     # Generate parameters using the appropriate field values
     lines <- c(lines, paste("--seqID", shQuote(seqID_field)))
     lines <- c(lines, paste("--report_title", shQuote(report_title_field)))
     lines <- c(lines, paste("--organism", shQuote(organism_field)))
+    lines <- c(lines, paste("--peak_caller", shQuote(peak_caller_field)))
     lines <- c(lines, paste("--annotation_db", shQuote(annotation_db_field)))
     lines <- c(lines, paste("--hipergator-group", shQuote(hipergator_group_field)))
     lines <- c(lines, paste("--output-path", shQuote(output_path_field)))
     lines <- c(lines, paste("--user_email", shQuote(user_email_field)))
     lines <- c(lines, paste("--min_count_for_filtering", min_count_field))
     lines <- c(lines, paste("--min_prop_for_filtering", min_prop_field))
+    
     # Sample sheet
     if (!is.null(values$selected_files[[sample_sheet_key]])) {
       lines <- c(lines, paste("--sample_sheet", shQuote(values$selected_files[[sample_sheet_key]])))
     }
+    
+    # Add spike-in DDS if provided (available for all modes)
+    if (!is.null(values$selected_files$spikein_dds)) {
+      lines <- c(lines, paste("--spikein_dds", shQuote(values$selected_files$spikein_dds)))
+    }
+    
     # Report metadata parameters (only add if not empty) - these are the same for all modes
     if (!is.null(input$PI) && input$PI != "") {
       lines <- c(lines, paste("--PI", shQuote(input$PI)))
@@ -2087,6 +2183,7 @@ server <- function(input, output, session) {
       }
       lines <- c(lines, paste("--bigwig_files", shQuote(paste(bigwig_pairs, collapse = ","))))
     }
+    
     # Contrasts
     if (!is.null(values$selected_files[[contrasts_key]])) {
       lines <- c(lines, paste("--contrasts", shQuote(values$selected_files[[contrasts_key]])))
@@ -2121,6 +2218,7 @@ server <- function(input, output, session) {
         lines <- c(lines, paste("--bam_files", shQuote(paste(bam_pairs, collapse = ","))))
       }
     }
+    
     # Optional QC files (same for all modes)
     if (!is.null(values$selected_files$qc_flagstat_dir)) {
       lines <- c(lines, paste("--qc_flagstat_dir", shQuote(values$selected_files$qc_flagstat_dir)))
@@ -2128,6 +2226,7 @@ server <- function(input, output, session) {
     if (!is.null(values$selected_files$qc_frip_file)) {
       lines <- c(lines, paste("--qc_frip_file", shQuote(values$selected_files$qc_frip_file)))
     }
+    
     # Optional URLs (same for all modes)
     if (!is.null(input$raw_seq_URL) && input$raw_seq_URL != "") {
       lines <- c(lines, paste("--raw_seq_URL", shQuote(input$raw_seq_URL)))
@@ -2135,6 +2234,7 @@ server <- function(input, output, session) {
     if (!is.null(input$multiqc_url) && input$multiqc_url != "") {
       lines <- c(lines, paste("--multiqc_url", shQuote(input$multiqc_url)))
     }
+    
     return(lines)
   }
   # Generate params file

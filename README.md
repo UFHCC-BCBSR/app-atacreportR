@@ -1,7 +1,39 @@
-```
-# ATAC-seq Analysis Parameter Generator & Report
+# Peak Reporter
 
-An interactive Shiny application for generating ATAC-seq differential accessibility analysis parameters and submitting HiPerGator SLURM jobs.
+An interactive Shiny application for configuring, running, and reporting differential analysis of peak data (CUT&RUN, ChIP-seq, ATAC-seq, and more). Designed for use with the University of Florida's HiPerGator computing system.
+
+## Overview
+
+Peak Reporter provides a user-friendly interface for managing complex peak analysis workflows, from initial data preparation through comprehensive differential analysis reporting. The application supports three distinct analysis modes to accommodate different stages of the analysis pipeline.
+
+## Features
+
+### Analysis Modes
+
+1. **Prepare Data Only**
+   - Creates consensus peaks across samples
+   - Performs read quantification using featureCounts
+   - Generates peak annotations
+   - Creates DESeq2 DDS objects for downstream analysis
+
+2. **Full Workflow** (Prepare + Analyze)
+   - All data preparation steps
+   - Differential accessibility analysis
+   - Comprehensive HTML report generation
+   - Track hub creation for genome browser visualization
+
+3. **Analysis from Existing Data**
+   - Uses pre-existing DDS objects and annotations
+   - Re-run analysis with different parameters or contrasts
+   - Analyze sample subsets from previous analyses
+
+### Supported Peak Callers
+- MACS2 (default)
+- Genrich
+
+### Normalization Methods
+- TMM normalization (default)
+- Spike-in normalization (when spike-in DDS provided)
 
 ## Quick Start
 
@@ -14,7 +46,7 @@ An interactive Shiny application for generating ATAC-seq differential accessibil
 2. **Run the shiny app in an rserver session:**
    ```bash
    module load R/4.5
-   rserver"
+   rserver
    ```
 
 3. **Use the web interface to:**
@@ -25,13 +57,14 @@ An interactive Shiny application for generating ATAC-seq differential accessibil
 
 ## How It Works
 
-This project provides an interactive way to configure and run ATAC-seq differential accessibility analysis on HiPerGator. The workflow consists of three main components:
+This project provides an interactive way to configure and run peak-based differential analysis on HiPerGator. The workflow consists of three main components:
 
 ### 1. Parameter Generation (`app.R`)
 Interactive Shiny application that allows users to:
 - Load existing parameter files or start fresh
-- Select sample sheets and data files through a file browser
-- Configure analysis settings (organism, filtering thresholds, etc.)
+- Select analysis mode (prepare-only, full workflow, or analyze-only)
+- Browse HiPerGator files through integrated file browser
+- Configure analysis settings (organism, peak caller, filtering thresholds, etc.)
 - Add report metadata (PI, project info, etc.)
 - Generate properly formatted parameter files
 - Submit SLURM jobs with a single click
@@ -42,97 +75,140 @@ R Markdown document that reads the parameter file and generates a comprehensive 
 - Peak annotation and genomic distribution
 - Differential accessibility analysis
 - Pathway enrichment analysis
-- Interactive visualizations and tables
+- Interactive visualizations and downloadable data tables
 
-### 3. SLURM Job Submission (`render-report-with-params.sbatch`)
-Batch script that:
-- Accepts parameter file and report title as arguments
-- Sets up the R environment with required libraries
-- Renders the R Markdown report
-- Handles output file naming and organization
+### 3. SLURM Job Submission
+- `render-report-with-params.sbatch`: Full analysis workflow
+- `prepare-data-only.sbatch`: Data preparation only
 
 ## Analysis Modules (`R/` directory)
 
 The analysis is organized into modular R scripts sourced by the main report:
 
-- **`data_preparation.R`**: Loads and validates input data (sample sheets, peak files, BAM files)
-- **`peak_processing.R`**: Merges peak files across samples, creates consensus peak sets
-- **`count_processing.R`**: Generates count matrices from peaks and applies filtering thresholds
-- **`analysis.R`**: Performs differential accessibility analysis using edgeR/limma
-- **`annotation.R`**: Annotates peaks with nearby genes and genomic features
-- **`validation.R`**: Input validation, quality control checks, and error handling
-- **`ATACseq_report_funcs.R`**: Utility functions for plotting, formatting, and report generation
+- **`data_preparation.R`**: Flexible data loading system that handles multiple input scenarios (nf-core output, existing DDS objects, individual files). Manages sample sheet integration and spike-in data loading.
+
+- **`peak_processing.R`**: Merges peak files across samples, creates consensus peak sets, and handles peak caller-specific formatting differences.
+
+- **`count_processing.R`**: Generates count matrices from consensus peaks using featureCounts, applies filtering thresholds, and prepares data for statistical analysis.
+
+- **`analysis.R`**: Performs differential accessibility analysis using DESeq2/edgeR pipeline with support for both TMM and spike-in normalization methods.
+
+- **`annotation.R`**: Annotates peaks with nearby genes and genomic features using organism-specific databases (supports mouse and human).
+
+- **`validation.R`**: Comprehensive input validation, quality control checks, file matching verification, and error handling with informative messages.
+
+- **`report_funcs.R`**: Utility functions for plotting, data formatting, table generation, and report styling. Includes functions for PCA plots, heatmaps, and interactive data tables.
 
 ## File Structure
 
 ```
 ├── app.R                              # Main Shiny application
-├── differential_peak_report.Rmd             # Analysis report template
-├── render-report-with-params.sbatch  # SLURM submission script
-├── R/                                # Analysis modules
-│   ├── data_preparation.R
-│   ├── peak_processing.R
-│   ├── count_processing.R
-│   ├── analysis.R
-│   ├── annotation.R
-│   ├── validation.R
-│   └── ATACseq_report_funcs.R
-├── mm10.chrom.sizes                  # Mouse genome chromosome sizes
-├── test-input/                       # Example input files
-├── output/                           # Generated parameters and reports
-└── logs/                            # SLURM job logs
+├── differential_peak_report.Rmd       # Analysis report template
+├── render-report-with-params.sbatch   # Full analysis SLURM script
+├── prepare-data-only.sbatch           # Data preparation SLURM script
+├── text-config.R                      # Report text configuration
+├── R/                                 # Analysis modules
+│   ├── data_preparation.R            # Flexible data loading system
+│   ├── peak_processing.R             # Consensus peak creation
+│   ├── count_processing.R            # Count matrix generation
+│   ├── analysis.R                    # Differential analysis
+│   ├── annotation.R                  # Peak annotation
+│   ├── validation.R                  # Input validation & QC
+│   └── report_funcs.R                # Report utility functions
+├── scripts/
+│   └── run_prepare_data_only.R       # Standalone data prep script
+├── legacy/
+│   └── render-report.sbatch          # Legacy SLURM script
+├── mm10.chrom.sizes                   # Mouse genome chromosome sizes
+├── hg38.chrom.sizes                   # Human genome chromosome sizes
 ```
 
 ## Input Requirements
 
-### Required Files
+### Required Files (varies by mode)
+
+**For Data Preparation Modes:**
 - **Sample sheet**: CSV with columns `sample`, `group`, and any covariates
 - **Peak files**: `.narrowPeak` or `.broadPeak` format (one per sample)
+- **BAM files**: Aligned reads (one per sample)
+
+**For Analysis from Existing Data:**
+- **DDS object**: `.RData` file from previous analysis
+- **Sample sheet**: CSV matching samples in DDS object
 - **BigWig files**: Coverage tracks (one per sample)
-- **BAM files**: Aligned reads (one per sample) *OR* existing DDS object
+
+**For All Analysis Modes:**
+- **BigWig files**: Coverage tracks for visualization
+- **Contrasts**: Either text input or file specifying comparisons
 
 ### Optional Files
-- **Contrasts file**: Text file specifying comparisons (or enter directly in app)
+- **Spike-in DDS**: For spike-in normalization (any mode)
 - **Peak annotation**: Pre-computed peak annotations
 - **QC files**: Flagstat summaries and FRIP scores
+- **URLs**: Links to raw data and MultiQC reports
 
 ## Usage Examples
 
+### Using the Shiny App
+1. Login with your HiPerGator group credentials
+2. Select your analysis mode
+3. Browse and select required files
+4. Configure analysis parameters
+5. Validate and generate parameters
+6. Submit job directly from the app
+
 ### Manual SLURM Submission
 ```bash
-# After generating params.txt through the app
+# Full analysis workflow
 sbatch render-report-with-params.sbatch \
   --params-file output/my-analysis_params.txt \
-  --title "My ATAC-seq Analysis"
+  --title "My Peak Analysis"
+
+# Data preparation only
+sbatch prepare-data-only.sbatch \
+  --params-file output/my-analysis_params.txt
 ```
 
 ### Loading Existing Parameters
 The app can load existing parameter files, allowing you to:
 - Modify previous analyses
 - Use templates for similar projects
+- Switch between analysis modes
 - Reproduce analyses with updated data
 
 ## Output
 
-The analysis generates:
+### Data Preparation Mode
+- **DDS object**: `seqID.dds.RData`
+- **Consensus peaks**: `seqID.consensus-peaks.txt`
+- **Annotated peaks**: `seqID.annotated.consensus-peaks.txt`
+
+### Full Analysis Mode
 - **HTML Report**: Comprehensive analysis with interactive plots and tables
 - **Parameter File**: Record of all analysis settings for reproducibility
-- **Log Files**: SLURM job execution logs for troubleshooting
+- **Data tables**: Downloadable Excel files with results
+- **Log Files**: SLURM job execution logs
+
+## Supported Organisms
+- Mouse (mmu) with org.Mm.eg.db
+- Human (hsa) with org.Hs.eg.db
 
 ## Requirements
-
-- **R 4.5+** with required packages (see shared library: `/blue/cancercenter-dept/shared/R/library/4.5/`)
+- **R 4.5+** with required packages
 - **HiPerGator access** for SLURM job submission
+- **Group credentials** for file browsing
 - **Input data** in the required formats
 
 ## Troubleshooting
-
-- **Module errors**: The SLURM script initializes the module system automatically
+- **Authentication issues**: Verify group credentials in the app
 - **File not found**: Ensure all input files are accessible from compute nodes
 - **Memory issues**: Increase `--mem` in the SLURM script for large datasets
-- **Job logs**: Check `logs/` directory for detailed error messages
+- **Job logs**: Check SLURM output for detailed error messages
+- **Validation errors**: Use the app's validation feature to check file compatibility
 
-## Example Data
-
-The `test-input/` directory contains example files to help understand the required input formats.
-```
+## Advanced Features
+- **Cross-mode compatibility**: Parameters generated in one mode can be loaded and modified for other modes
+- **File matching validation**: Automatic verification that sample names match across file types
+- **Flexible normalization**: Automatic detection and application of appropriate normalization methods
+- **Interactive file browser**: Integrated HiPerGator file system navigation
+- **Real-time validation**: Immediate feedback on parameter configuration

@@ -182,11 +182,28 @@ if (!identical(sample_info_matched$sample, as.character(targetGenome_dds$sample)
 meta_cols <- setdiff(colnames(sample_info_matched), c("sample", colnames(colData(targetGenome_dds))))
 colData(targetGenome_dds)[meta_cols] <- sample_info_matched[meta_cols]
 
-# Conditionally load spike-in data if directory is provided
-if (!is.null(report_params$nfcore_spikein_dir) && report_params$nfcore_spikein_dir != "") {
-  load(paste0(report_params$nfcore_spikein_dir, "/bowtie2/merged_library/macs2/broad_peak/consensus/deseq2/consensus_peaks.mLb.clN.dds.RData"))
+# Updated spike-in loading logic - prioritize direct file path over directory
+if (!is.null(report_params$spikein_dds) && report_params$spikein_dds != "" && file.exists(report_params$spikein_dds)) {
+  # Method 1: Direct spike-in DDS file path (new approach)
+  message("🔄 Loading spike-in DDS from direct file path: ", basename(report_params$spikein_dds))
+  load(report_params$spikein_dds)
   spikeIn_dds <- dds
   rm(dds)
+  message("✅ Spike-in DDS loaded successfully")
+} else if (!is.null(report_params$nfcore_spikein_dir) && report_params$nfcore_spikein_dir != "") {
+  # Method 2: Legacy directory-based approach (fallback)
+  spikein_file <- paste0(report_params$nfcore_spikein_dir, "/bowtie2/merged_library/macs2/broad_peak/consensus/deseq2/consensus_peaks.mLb.clN.dds.RData")
+  if (file.exists(spikein_file)) {
+    message("🔄 Loading spike-in DDS from nfcore directory: ", basename(spikein_file))
+    load(spikein_file)
+    spikeIn_dds <- dds
+    rm(dds)
+    message("✅ Spike-in DDS loaded successfully")
+  } else {
+    message("⚠️ Spike-in directory provided but file not found: ", spikein_file)
+  }
+} else {
+  message("ℹ️ No spike-in data provided - will use TMM normalization")
 }
 ```
 

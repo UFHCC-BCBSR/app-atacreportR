@@ -41,7 +41,7 @@ library(ggfortify)
 library(scales)
 library(stringr)
 library(downloadthis)
-
+source("text-config.R")
 source("R/report_funcs.R", local = knitr::knit_global())
 select <- dplyr::select
 
@@ -194,33 +194,21 @@ if (!is.null(report_params$nfcore_spikein_dir) && report_params$nfcore_spikein_d
 
 ## Peak Calling and Consensus Peakset Generation
 
-```{r nfcore_description, echo=FALSE, results='asis'}
-if (exists("spikeIn_dds")) {
-  atacseq_text <- "Raw ATAC-seq data were processed using the nf-core/atacseq 2.1.2 [^2] ([https://nf-co.re/atacseq/2.1.2/](https://nf-co.re/atacseq/2.1.2/)) pipeline for both the primary human genome and a *Drosophila melanogaster* spike-in genome. Peak calling was performed with MACS2 in broad peak mode for each individual sample. A consensus peakset was generated across all samples by merging all individual peak sets using bedtools merge, without filtering for reproducibility or requiring presence in a minimum number of replicates. This approach produces a union of all detected peaks across all samples. Read counts were first quantified over the global consensus peakset, which was then filtered per contrast to retain only peaks present in the relevant samples for downstream differential accessibility analysis."
-} else {
-  atacseq_text <- "Raw ATAC-seq data were processed using the nf-core/atacseq 2.1.2 [^2] ([https://nf-co.re/atacseq/2.1.2/](https://nf-co.re/atacseq/2.1.2/)) pipeline. Peak calling was performed with MACS2 in broad peak mode for each individual sample. A consensus peakset was generated across all samples by merging all individual peak sets using bedtools merge, without filtering for reproducibility or requiring presence in a minimum number of replicates. This approach produces a union of all detected peaks across all samples. Read counts were first quantified over the global consensus peakset, which was then filtered per contrast to retain only peaks present in the relevant samples for downstream differential accessibility analysis."
-}
+```{r peak_calling_text, echo=FALSE, results='asis'}
+peak_calling_description <- get_peak_calling_text(
+  peak_caller = report_params$peak_caller,
+)
 
-knitr::asis_output(atacseq_text)
+knitr::asis_output(peak_calling_description)
 ```
-
 
 ## Normalization
 
 ```{r normalization_text, echo=FALSE, results='asis'}
-# Set normalization method description
-if (exists("spikeIn_dds")) {
-  species <- if (report_params$organism == "mmu") "mouse" else "human"
-  norm_text <- paste0(
-    "Spike-in normalization factors were calculated as the ratio of spike-in counts to ", 
-    species, 
-    " counts per sample, scaled by the median of these ratios. The inverse of these normalized ratios was assigned as the size factor for each sample in the ", 
-    species, 
-    " dataset, enabling normalization of counts based on spike-in abundance."
-  )
-} else {
-  norm_text <- "Spike-in normalization was not available for this dataset. Counts were normalized using the TMM (Trimmed Mean of M-values) method to account for library size differences."
-}
+norm_text <- get_normalization_text(
+  has_spike_in = exists("spikeIn_dds"),
+  organism = report_params$organism
+)
 
 knitr::asis_output(norm_text)
 ```
@@ -385,13 +373,13 @@ if (exists("spikeIn_dds")) {
 ```{r pca_text, echo=FALSE,results='asis'}
 if (exists("spikeIn_dds")) {
   pca_header <- "Principal Component Analysis (PCA) plots are used here to visualize the overall structure of the data. Two PCA plots are shown:
-- **Library Size Normalized (CPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
+- **Library Size Normalized (LCPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
 - **Spike-in Normalized:** Variance after spike-in normalization, where normalization factors were calculated based on spike-in controls to adjust for both library size and compositional biases.
 The side-by-side comparison highlights the effect of spike-in normalization over basic CPM normalization on sample clustering."
-  pca_combined_title <- "PCA Comparison: CPM vs Spike-in Normalized"
+  pca_combined_title <- "PCA Comparison: LCPM vs Spike-in Normalized"
 } else {
   pca_header <- "Principal Component Analysis (PCA) plots are used here to visualize the overall structure of the data. Two PCA plots are shown:
-- **Library Size Normalized (CPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
+- **Library Size Normalized (LCPM):** Variance between samples after basic library size normalization (counts per million) but without compositional bias correction.
 - **TMM Normalized:** Variance after TMM normalization, which adjusts for both library size differences and compositional biases between samples.
 The side-by-side comparison highlights the effect of TMM normalization over basic CPM normalization on sample clustering."
   pca_combined_title <- "PCA Comparison: CPM vs TMM Normalized"
@@ -443,7 +431,7 @@ layout(
 
 ```{r corr_text, echo=FALSE,results='asis', eval = !params$test_mode}
 if (exists("spikeIn_dds")) {
-  corr_header <- "The correlation heatmaps shown here represent the pairwise correlation between samples based on their log-transformed counts per million (CPM). Two sets of heatmaps are presented:
+  corr_header <- "The correlation heatmaps shown here represent the pairwise correlation between samples based on their log-transformed counts per million (LCPM). Two sets of heatmaps are presented:
 
 - **Raw Counts:** The first heatmap shows the sample correlation using raw counts, providing an overview of how similarly the samples behave without any normalization.
 - **Spike-in Normalized Counts:** The second heatmap illustrates the correlation between samples after spike-in normalization, which helps account for technical variation and improve comparability between samples.
@@ -452,7 +440,7 @@ These heatmaps help assess the overall quality of the samples and identify poten
 } else {
   corr_header <- "The correlation heatmaps shown here represent the pairwise correlation between samples based on their log-transformed counts per million (CPM). Two sets of heatmaps are presented:
 
-- **Raw Counts:** The first heatmap shows the sample correlation using raw counts, providing an overview of how similarly the samples behave without any normalization.
+- **Raw Counts:** The first heatmap shows the sample correlation using LCPM of raw counts, providing an overview of how similarly the samples behave without any normalization.
 - **TMM Normalized Counts:** The second heatmap illustrates the correlation between samples after TMM normalization, which adjusts for library size differences without the use of spike-in controls.
 
 These heatmaps help assess the overall quality of the samples and identify potential batch effects or outliers in the dataset."
@@ -593,11 +581,7 @@ results_list <- run_differential_analysis(
 
 # Differential Accessibility Analysis
 
-To determine differential accessibility, a consensus set of peaks was first defined across all samples in the dataset included in this report. Peaks were included in the consensus set if they were present in at least two replicates within any group, ensuring robust detection of shared accessible regions. If more than one contrast was tested, this consensus peakset was filtered to retain only peaks present in at least two replicates in either of the contrast's groups.
-
-For each per-contrast consensus peak, the number of aligned reads overlapping that region was counted for every sample, resulting in a matrix of read counts per peak per sample ("peak count matrix"). 
-
-Differential accessibility analysis of the peak count matrix was performed using the R package edgeR v. 3.4 (McCarthy et al. 2012)[^1] to identify peaks with statistically significant differences in accessibility between the two conditions in each contrast. This edgeR analysis normalizes count data using spike-in factors, filters peaks with a minimum count of 5 and a minimum proportion of 0.5 across samples for a given contrast, fits a model using the formula ~0 + Condition, and performs differential expression testing to identify significant changes between conditions. Specifically, estimateDisp(dge_contrast, design_contrast) was used to estimate the biological variation (dispersion) in the data, and glmQLFit(dge_contrast, design_contrast) was used to fit a quasi-likelihood generalized linear model, which is more robust to overdispersion compared to glmFit for this type of data.
+Differential accessibility analysis of the peak count matrix was performed using the R package edgeR v. 3.4 (McCarthy et al. 2012)[^1] to identify peaks with statistically significant differences in accessibility between conditions in each contrast. For each contrast, samples were subset to the two comparison groups, and peaks were filtered using filterByExpr() with minimum count and proportion thresholds to retain reliably detected peaks. Biological variation (dispersion) was estimated using estimateDisp(), and a quasi-likelihood generalized linear model was fitted using glmQLFit() with the formula ~0 + Condition. Differential accessibility testing was performed using glmQLFTest() to identify peaks with statistically significant changes between conditions.
 
 ## Overview of Contrasts
 
@@ -681,7 +665,10 @@ tagList(output_tables)
 
 ## Downloadable Results Tables
 
-Results of Differential Accessibility Analysis are provided below. Peak annotation was performed using HOMER as implemented in the nf-core/atacseq pipeline. Promoter regions were defined as peaks +/- 1,000 bp from TSS, and this designation may differ from the HOMER derived annotation in the annotation column(s) which considers promoter regions as those –1,000 bp to +100 bp relative to the transcription start site (TSS)
+```{r annotation_description, echo=FALSE, results='asis'}
+annotation_text <- get_annotation_description_text(peaks_anno)
+knitr::asis_output(annotation_text)
+```
 
 ```{r make downloads, message=FALSE, warning=FALSE,eval = !params$test_mode}
 library(dplyr)

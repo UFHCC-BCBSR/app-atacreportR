@@ -53,7 +53,7 @@ select <- dplyr::select
 # params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
 #params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-peakreporter_params.txt"
 #params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-all-in-one_params.txt"
-params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-peakreporter-update_params.txt"
+params_path <- "/blue/zhangw/BCBSR_BIOINFORMATICS/hkates/TANZIA/MLH1MSH2/NS3842_atacseq/MSH2/diff-analysis/output/NS3842-MSH2-from-app_params.txt"
 ```
 
 ```{r parse-params, include=FALSE}
@@ -408,8 +408,8 @@ knitr::asis_output(pca_header)
 library(plotly)
 
 # Create PCA plots
-pca_raw <- plot_pca(dge_raw, title = "PCA - CPM Normalized", show_legend = FALSE)
-pca_norm <- plot_pca(dge, title = paste0("PCA - ", norm_method_title), show_legend = TRUE)
+pca_raw <- plot_pca(dge_raw, title = "PCA - CPM Normalized", show_legend = FALSE,plot_var=report_params$variable)
+pca_norm <- plot_pca(dge, title = paste0("PCA - ", norm_method_title), show_legend = TRUE,plot_var=report_params$variable)
 
 # Display plots side by side with individual titles
 subplot(

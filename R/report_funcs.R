@@ -1059,7 +1059,7 @@ get_log_matrix <- function(dge) {
 library(plotly)
 library(RColorBrewer)
 library(car)
-plot_pca <- function(dge, title, show_legend = TRUE) {
+plot_pca <- function(dge, title, show_legend = TRUE,plot_var) {
   # Extract log2 CPM values
   logcpm <- cpm(dge, log = TRUE)
   
@@ -1077,7 +1077,7 @@ plot_pca <- function(dge, title, show_legend = TRUE) {
   # Get sample info
   samples_df <- as.data.frame(dge$samples)
   scores$Sample <- rownames(scores)
-  scores$Group <- samples_df$Condition
+  scores$Group <- samples_df[[plot_var]]
   
   # Create base plot
   fig <- plot_ly()

@@ -364,6 +364,15 @@ ui <- fluidPage(
                 column(6, numericInput("min_prop_for_filtering", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
               )
           )
+        ),
+        conditionalPanel(
+          condition = "input.analysis_mode != 'prepare_only'",
+          div(class = "param-group",
+              h4("Plot Variable Selection", tags$span("*", style = "color: red;")),
+              p("Select the metadata variable to use for coloring plots (PCA, heatmaps, etc.):"),
+              uiOutput("variable_selection_ui"),
+              helpText("This dropdown will populate once you select/upload a sample sheet above.")
+          )
         )
     )
   ),
@@ -524,7 +533,15 @@ ui <- fluidPage(
             ),
             textInput("contrasts_text_analyze", "OR Enter Contrasts (comma-separated)", placeholder = "group1_vs_group2,treatment_vs_control")
         ),
-        
+        conditionalPanel(
+          condition = "input.analysis_mode != 'prepare_only'",
+          div(class = "param-group",
+              h4("Plot Variable Selection", tags$span("*", style = "color: red;")),
+              p("Select the metadata variable to use for coloring plots (PCA, heatmaps, etc.):"),
+              uiOutput("variable_selection_ui"),
+              helpText("This dropdown will populate once you select/upload a sample sheet above.")
+          )
+        ),
         # Filtering Parameters (required for all modes)
         div(class = "param-group",
             h4("Filtering Parameters"),
@@ -658,7 +675,8 @@ server <- function(input, output, session) {
   # Group passwords
   group_passwords <- list(
     "cancercenter-dept" = "Abc123",
-    "licht" = "licht123"
+    "licht" = "licht123",
+    "zhangw" = "zhang123"
   )
   
   # Authentication
@@ -1651,6 +1669,18 @@ server <- function(input, output, session) {
       if ("qc_frip_file" %in% names(params)) {
         values$selected_files$qc_frip_file <- params$qc_frip_file
       }
+      # In your observeEvent(input$load_existing_params, ...) function, add:
+      
+      if ("variable" %in% names(params)) {
+        # Need to wait for the UI to be rendered before updating
+        observe({
+          cols <- available_metadata_columns()
+          if (!is.null(cols) && params$variable %in% cols) {
+            updateSelectInput(session, "variable", selected = params$variable)
+            updateSelectInput(session, "variable_analyze", selected = params$variable)
+          }
+        })
+      }
       
       # Mark that parameters were loaded
       values$params_loaded <- TRUE
@@ -2008,6 +2038,40 @@ server <- function(input, output, session) {
               messages <- c(messages, paste("✅", matched_bams, "samples successfully matched to BAM files"))
             }
           }
+          # In your validate_parameters function, add this check (after the other validations):
+          
+          # Check variable selection for analysis modes
+          if (input$analysis_mode != "prepare_only") {
+            variable_field <- if (input$analysis_mode == "analyze_only") {
+              input$variable_analyze
+            } else {
+              input$variable
+            }
+            
+            if (is.null(variable_field) || variable_field == "") {
+              messages <- c(messages, "❌ Plot variable must be selected")
+            } else {
+              # Verify the variable exists in the sample sheet
+              sample_sheet_path <- if (input$analysis_mode == "analyze_only") {
+                values$selected_files$sample_sheet_analyze
+              } else {
+                values$selected_files$sample_sheet
+              }
+              
+              if (!is.null(sample_sheet_path) && file.exists(sample_sheet_path)) {
+                tryCatch({
+                  df <- read.csv(sample_sheet_path, stringsAsFactors = FALSE)
+                  if (!(variable_field %in% colnames(df))) {
+                    messages <- c(messages, "❌ Selected variable not found in sample sheet")
+                  } else {
+                    messages <- c(messages, paste("✅ Plot variable set to:", variable_field))
+                  }
+                }, error = function(e) {
+                  messages <- c(messages, "❌ Error validating variable in sample sheet")
+                })
+              }
+            }
+          }
         }
       }, error = function(e) {
         messages <- c(messages, paste("❌ Error reading sample sheet:", e$message))
@@ -2108,6 +2172,20 @@ server <- function(input, output, session) {
     lines <- c(lines, paste("--user_email", shQuote(user_email_field)))
     lines <- c(lines, paste("--min_count_for_filtering", min_count_field))
     lines <- c(lines, paste("--min_prop_for_filtering", min_prop_field))
+    # In your generate_params_content function, add this after the filtering parameters:
+    
+    # Add variable selection for analysis modes (both modes use the same param name)
+    if (input$analysis_mode != "prepare_only") {
+      variable_field <- if (input$analysis_mode == "analyze_only") {
+        input$variable_analyze
+      } else {
+        input$variable
+      }
+      
+      if (!is.null(variable_field) && variable_field != "") {
+        lines <- c(lines, paste("--variable", shQuote(variable_field)))
+      }
+    }
     
     # Sample sheet
     if (!is.null(values$selected_files[[sample_sheet_key]])) {
@@ -2347,6 +2425,57 @@ server <- function(input, output, session) {
       values$user_made_changes <- TRUE
       # Reset the existing_params_file reference so new generation is used
       values$existing_params_file <- NULL
+    }
+  })
+  # Reactive to get available columns from sample sheet
+  available_metadata_columns <- reactive({
+    # Determine which sample sheet to use based on mode
+    sample_sheet_path <- if (input$analysis_mode == "analyze_only") {
+      values$selected_files$sample_sheet_analyze
+    } else {
+      values$selected_files$sample_sheet
+    }
+    
+    if (!is.null(sample_sheet_path) && file.exists(sample_sheet_path)) {
+      tryCatch({
+        df <- read.csv(sample_sheet_path, stringsAsFactors = FALSE)
+        # Return all columns except 'sample' (which is used for matching)
+        cols <- setdiff(colnames(df), "sample")
+        return(cols)
+      }, error = function(e) {
+        return(NULL)
+      })
+    }
+    return(NULL)
+  })
+  
+  # Dynamic UI for variable selection
+  output$variable_selection_ui <- renderUI({
+    cols <- available_metadata_columns()
+    
+    if (is.null(cols) || length(cols) == 0) {
+      div(style = "color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px;",
+          tags$i(class = "fa fa-info-circle"),
+          " Please select/upload a sample sheet first to see available variables."
+      )
+    } else {
+      # Try to set a smart default (common column names)
+      default_choice <- if ("group" %in% cols) {
+        "group"
+      } else if ("condition" %in% cols) {
+        "condition"
+      } else if ("treatment" %in% cols) {
+        "treatment"
+      } else {
+        cols[1]  # Just use first column as default
+      }
+      
+      selectInput(
+        inputId = if (input$analysis_mode == "analyze_only") "variable_analyze" else "variable",
+        label = "Plotting Variable:",
+        choices = cols,
+        selected = default_choice
+      )
     }
   })
 } # This ends the server{}

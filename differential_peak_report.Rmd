@@ -615,7 +615,7 @@ cat(
 
 ## Summary of Differential Accessibility per-contrast
 
-In the per-contrast summary tables below, the "significance" column indicates the "direction" of the significant results (in what group the peak is more accessible), and the number of peaks indicates the number of peaks that are significantly more accessible (FDR < 0.05) in that group. Consensus peaks that were not significantly different between the two groups in the contrast are reported as "Not significant".
+In the per-contrast summary tables below, the "significance" column indicates the "direction" of the significant results (in what group the peak is more accessible), and the number of peaks indicates the number of peaks that are significantly more accessible (FDR < `r report_params$sig_cutoff` and |logFC| > `r report_params$logFC_cutoff`) in that group. Consensus peaks that were not significantly different between the two groups in the contrast are reported as "Not significant".
 
 ```{r summary}
 # Helper function to clean group names (remove X prefix from numeric starts)
@@ -640,8 +640,8 @@ summary_tables <- lapply(names(results_list), function(contrast) {
   
   df <- df %>%
     mutate(significance = case_when(
-      FDR < 0.05 & logFC > 0 ~ paste("More Accessible (", group1_clean, ")"),
-      FDR < 0.05 & logFC < 0 ~ paste("More Accessible (", group2_clean, ")"),
+      FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ paste("More Accessible (", group1_clean, ")"),
+      FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ paste("More Accessible (", group2_clean, ")"),
       TRUE ~ "Not Significant"
     ))
   summary <- df %>%
@@ -727,18 +727,18 @@ for (cn in names(results_list)) {
   }
   
   # Promoter regions
-  prom_df <- contrast_data %>% filter(FDR < 0.05, abs(.data[[distance_col]]) < 1000)
-  prom_left <- prom_df %>% filter(logFC > 0)
-  prom_right <- prom_df %>% filter(logFC < 0)
+  prom_df <- contrast_data %>% filter(FDR < report_params$sig_cutoff, abs(.data[[distance_col]]) < 1000)
+  prom_left <- prom_df %>% filter(logFC > report_params$logFC_cutoff)
+  prom_right <- prom_df %>% filter(logFC < -report_params$logFC_cutoff)
   promoter_lists[[cn_display]] <- setNames(  # Use cleaned display name
     list(prom_left, prom_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
   )
   
   # All annotated regions
-  all_df <- contrast_data %>% filter(FDR < 0.05)
-  all_left <- all_df %>% filter(logFC > 0)
-  all_right <- all_df %>% filter(logFC < 0)
+  all_df <- contrast_data %>% filter(FDR < report_params$sig_cutoff)
+  all_left <- all_df %>% filter(logFC > report_params$logFC_cutoff)
+  all_right <- all_df %>% filter(logFC < -report_params$logFC_cutoff)
   allregion_lists[[cn_display]] <- setNames(  # Use cleaned display name
     list(all_left, all_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
@@ -820,7 +820,7 @@ copy_file_to_web <- function(source_path, dest_dir, filename) {
 create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
   # Filter significant peaks
   sig_peaks <- results_df %>%
-    filter(FDR < 0.05, abs(logFC) > 1, logCPM > 2, !is.na(Gene.Name))
+    filter(FDR < report_params$sig_cutoff, abs(logFC) > 1, logCPM > 2, !is.na(Gene.Name))
   
   if (nrow(sig_peaks) == 0) {
     cat("No significant peaks found for", contrast_name, "\n")
@@ -851,7 +851,7 @@ create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
       Strand = if (strand_col %in% colnames(.)) .[[strand_col]] else ".",
       # Create directional peak names
       base_name = ifelse(!is.na(Gene.Name) & Gene.Name != "", Gene.Name, interval),
-      direction_suffix = ifelse(logFC > 0, 
+      direction_suffix = ifelse(logFC > report_params$logFC_cutoff, 
                                paste0("_MORE_ACC_IN_", toupper(group1)), 
                                paste0("_MORE_ACC_IN_", toupper(group2))),
       peak_name = paste0(base_name, direction_suffix)
@@ -860,7 +860,7 @@ create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
     mutate(
       Chr = ifelse(grepl("^chr", Chr), Chr, paste0("chr", Chr)),
       # Convert scores to integers (BED format requirement)
-      score = as.integer(ifelse(logFC > 0,
+      score = as.integer(ifelse(logFC > report_params$logFC_cutoff,
                                pmin(1000, pmax(600, 600 + abs(logFC) * 100)), # Up: 600-1000
                                pmin(500, pmax(200, 500 - abs(logFC) * 100)))), # Down: 200-500
       strand = Strand  # Rename to standard lowercase for BED output
@@ -1073,8 +1073,8 @@ all_results <- bind_rows(
     
     df <- df %>%
       mutate(significance = case_when(
-        FDR < 0.05 & logFC > 0 ~ paste0(right, "\n(More Accessible)"),
-        FDR < 0.05 & logFC < 0 ~ paste0(left, "\n(More Accessible)"),
+        FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ paste0(right, "\n(More Accessible)"),
+        FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ paste0(left, "\n(More Accessible)"),
         TRUE ~ "Not Significant"
       ))
     return(df)
@@ -1127,14 +1127,14 @@ preprocess_result <- function(df, contrast) {
   df$group1 <- groups[1]
   df$group2 <- groups[2]
   df$Accessibility <- case_when(
-    df$FDR < 0.05 & df$logFC > 1  ~ paste0("More accessible in ", df$group1),
-    df$FDR < 0.05 & df$logFC < -1 ~ paste0("More accessible in ", df$group2),
+    df$FDR < report_params$sig_cutoff & df$logFC > 1  ~ paste0("More accessible in ", df$group1),
+    df$FDR < report_params$sig_cutoff & df$logFC < -1 ~ paste0("More accessible in ", df$group2),
     TRUE                          ~ "Not Significant"
   )
   
   df$Significant <- case_when(
-    df$FDR < 0.05 & df$logFC > 1  ~ "more",
-    df$FDR < 0.05 & df$logFC < -1 ~ "less",
+    df$FDR < report_params$sig_cutoff & df$logFC > 1  ~ "more",
+    df$FDR < report_params$sig_cutoff & df$logFC < -1 ~ "less",
     TRUE                          ~ "ns"
   )
   
@@ -1250,7 +1250,7 @@ Pathway enrichment analysis was performed to identify functional enrichment of g
 
 ## Differentially Accessible Genes
 
-To create gene lists to input into enrichment analyses, differentially accessible peaks were filtered by FDR < 0.05 and split into more accessible in left group relative to right group (logFC >1) and less accessible (logFC < 1). From these filtered peaks, those annotated with entrez IDs were selected and these entrez IDs were used as input into the enrichment analysis.
+To create gene lists to input into enrichment analyses, differentially accessible peaks were filtered by FDR < report_params$sig_cutoff and split into more accessible in left group relative to right group (logFC >1) and less accessible (logFC < 1). From these filtered peaks, those annotated with entrez IDs were selected and these entrez IDs were used as input into the enrichment analysis.
 
 ```{r make gene lists, eval = !params$test_mode}
 library("AnnotationDbi")
@@ -1301,12 +1301,12 @@ for (contrast in names(results_list)) {
   }
   
   up_genes <- df %>%
-    filter(FDR < 0.05, logFC > 1) %>%
+    filter(FDR < report_params$sig_cutoff, logFC > 1) %>%
     pull(ENTREZID) %>%
     na.omit() %>% unique()
   
   down_genes <- df %>%
-    filter(FDR < 0.05, logFC < -1) %>%
+    filter(FDR < report_params$sig_cutoff, logFC < -1) %>%
     pull(ENTREZID) %>%
     na.omit() %>% unique()
   

@@ -41,18 +41,12 @@ library(ggfortify)
 library(scales)
 library(stringr)
 library(downloadthis)
+library(gridExtra)
 source("text-config.R")
 source("R/report_funcs.R", local = knitr::knit_global())
 select <- dplyr::select
 
 # Edit this for interactive use
-# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-test-params.txt'
-# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/params.txt'
-# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/licht-params-from-app.txt'
-# params_path <- '/blue/cancercenter-dept/hkates/Apps/new-atacreportR/test-input/NS3971-test_params.txt'
-# params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-nfcore_params.txt"
-#params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-from-peakreporter_params.txt"
-#params_path <- "/blue/cancercenter-dept/hkates/Apps/new-atacreportR/output/daphne-all-in-one_params.txt"
 params_path <- "/blue/zhangw/BCBSR_BIOINFORMATICS/hkates/TANZIA/MLH1MSH2/NS3842_atacseq/MSH2/diff-analysis/output/NS3842-MSH2-from-app_params.txt"
 ```
 
@@ -450,7 +444,7 @@ layout(
 if (exists("spikeIn_dds")) {
   corr_header <- "The correlation heatmaps shown here represent the pairwise correlation between samples based on their log-transformed counts per million (LCPM). Two sets of heatmaps are presented:
 
-- **Raw Counts:** The first heatmap shows the sample correlation using raw counts, providing an overview of how similarly the samples behave without any normalization.
+- **Raw Counts:** The first heatmap shows the sample correlation using LCPM of raw counts, providing an overview of how similarly the samples behave without any normalization.
 - **Spike-in Normalized Counts:** The second heatmap illustrates the correlation between samples after spike-in normalization, which helps account for technical variation and improve comparability between samples.
 
 These heatmaps help assess the overall quality of the samples and identify potential batch effects or outliers in the dataset."
@@ -474,11 +468,10 @@ logcpm_norm <- cpm(dge, log = TRUE)
 cor_raw  <- cor(logcpm_raw)
 cor_norm <- cor(logcpm_norm)
 
-# Plot side-by-side
-par(mfrow = c(1, 2))
+p1 <- pheatmap(cor_raw, main = "Sample Correlation - logCPM", silent = TRUE)
+p2 <- pheatmap(cor_norm, main = paste0("Sample Correlation - ", norm_method_title), silent = TRUE)
 
-pheatmap(cor_raw, main = "Sample Correlation - Raw")
-pheatmap(cor_norm, main = paste0("Sample Correlation - ", norm_method_title))
+grid.arrange(p1[[4]], p2[[4]], ncol = 2)
 ```
 
 ```{r annotate consensus peaks}
@@ -598,7 +591,17 @@ results_list <- run_differential_analysis(
 
 # Differential Accessibility Analysis
 
-Differential accessibility analysis of the peak count matrix was performed using the R package edgeR v. 3.4 (McCarthy et al. 2012)[^1] to identify peaks with statistically significant differences in accessibility between conditions in each contrast. For each contrast, samples were subset to the two comparison groups, and peaks were filtered using filterByExpr() with minimum count and proportion thresholds to retain reliably detected peaks. Biological variation (dispersion) was estimated using estimateDisp(), and a quasi-likelihood generalized linear model was fitted using glmQLFit() with the formula ~0 + Condition. Differential accessibility testing was performed using glmQLFTest() to identify peaks with statistically significant changes between conditions.
+Differential accessibility analysis of the peak count matrix was performed using the R package edgeR v. 3.4 (McCarthy et al. 2012)[^1] to identify peaks with statistically significant differences in accessibility between conditions in each contrast. 
+
+## Peak Filtering
+
+For each contrast, samples were subset to the two comparison groups, and peaks were filtered using filterByExpr() to retain reliably detected peaks. Filtering was performed with a minimum count threshold of **`r report_params$min_count_for_filtering`** and a minimum proportion threshold of **`r report_params$min_prop_for_filtering`** (requiring the minimum count to be met in at least `r report_params$min_prop_for_filtering * 100`% of samples in the smaller group). 
+
+Low-count filtering serves two critical purposes: (1) it removes peaks with insufficient reads for reliable statistical testing, as low counts lead to unstable fold-change estimates and reduced statistical power, and (2) it reduces the multiple testing burden by removing peaks unlikely to be differentially accessible, thereby improving false discovery rate (FDR) control and increasing power to detect true differences among the remaining peaks. Only peaks passing these filtering criteria are included in the statistical analysis and considered as "detected" peaks in the results.
+
+## Statistical Testing
+
+Biological variation (dispersion) was estimated using estimateDisp(), and a quasi-likelihood generalized linear model was fitted using glmQLFit() with the formula ~0 + Condition. Differential accessibility testing was performed using glmQLFTest() to identify peaks with statistically significant changes between conditions.
 
 ## Overview of Contrasts
 
@@ -618,15 +621,6 @@ cat(
 In the per-contrast summary tables below, the "significance" column indicates the "direction" of the significant results (in what group the peak is more accessible), and the number of peaks indicates the number of peaks that are significantly more accessible (FDR < `r report_params$sig_cutoff` and |logFC| > `r report_params$logFC_cutoff`) in that group. Consensus peaks that were not significantly different between the two groups in the contrast are reported as "Not significant".
 
 ```{r summary}
-# Helper function to clean group names (remove X prefix from numeric starts)
-clean_group_name <- function(name) {
-  # Remove X prefix if the rest starts with a number
-  if (grepl("^X\\d", name)) {
-    return(substring(name, 2))
-  }
-  return(name)
-}
-
 # Create a summary table per contrast
 summary_tables <- lapply(names(results_list), function(contrast) {
   df <- results_list[[contrast]]$table
@@ -693,18 +687,13 @@ library(stringr)
 library(downloadthis)
 library(htmltools)
 
-# Helper function to clean group names (remove X prefix from numeric starts)
-clean_group_name <- function(name) {
-  # Remove X prefix if the rest starts with a number
-  if (grepl("^X\\d", name)) {
-    return(substring(name, 2))
-  }
-  return(name)
-}
-
-# STEP 1: Create in-memory data frame lists (but don't write to disk)
+# STEP 1: Create in-memory data frame lists for SIGNIFICANT results
 promoter_lists <- list()
 allregion_lists <- list()
+
+# STEP 1b: Create in-memory data frame lists for FULL results (no filtering)
+full_results_lists <- list()
+
 for (cn in names(results_list)) {
   cn_clean <- gsub("\\.", "-", cn)  # Restores the original contrast name with "-"
   contrast_data <- results_list[[cn]]$table
@@ -726,10 +715,12 @@ for (cn in names(results_list)) {
     stop("Cannot find distance to TSS column in annotation data")
   }
   
+  # === SIGNIFICANT RESULTS ===
   # Promoter regions
   prom_df <- contrast_data %>% filter(FDR < report_params$sig_cutoff, abs(.data[[distance_col]]) < 1000)
   prom_left <- prom_df %>% filter(logFC > report_params$logFC_cutoff)
   prom_right <- prom_df %>% filter(logFC < -report_params$logFC_cutoff)
+  
   promoter_lists[[cn_display]] <- setNames(  # Use cleaned display name
     list(prom_left, prom_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
@@ -739,13 +730,17 @@ for (cn in names(results_list)) {
   all_df <- contrast_data %>% filter(FDR < report_params$sig_cutoff)
   all_left <- all_df %>% filter(logFC > report_params$logFC_cutoff)
   all_right <- all_df %>% filter(logFC < -report_params$logFC_cutoff)
+  
   allregion_lists[[cn_display]] <- setNames(  # Use cleaned display name
     list(all_left, all_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
   )
+  
+  # === FULL RESULTS (no significance filtering) ===
+  full_results_lists[[cn_display]] <- contrast_data
 }
 
-# STEP 2: Create download buttons (no filepaths used)
+# STEP 2: Create download buttons for SIGNIFICANT results
 promoter_buttons <- purrr::map2(promoter_lists, names(promoter_lists), function(datalist, cn_display) {
   download_this(
     .data = datalist,
@@ -765,12 +760,25 @@ allregion_buttons <- purrr::map2(allregion_lists, names(allregion_lists), functi
     output_extension = ".xlsx"
   )
 })
+
+# STEP 3: Create download buttons for FULL results
+full_results_buttons <- purrr::map2(full_results_lists, names(full_results_lists), function(data_df, cn_display) {
+  download_this(
+    .data = data_df,
+    output_name = paste0(report_params$seqID,"_Differential_Accessibility_Full_Results_", gsub(" vs ", "_vs_", cn_display)),
+    button_label = paste0(report_params$seqID,"_Full DA Results:<br>", cn_display),
+    button_type = "warning",
+    output_extension = ".xlsx"
+  )
+})
 ```
 
 ```{r download table,eval = !params$test_mode}
 knitr::asis_output(
   paste(
-    "<h3>Download Differential Accessibility Results</h3>",
+    "<h3>Download Significant Differential Accessibility Results</h3>",
+    "<p><em>These downloads contain only peaks meeting significance criteria (FDR < ", report_params$sig_cutoff, 
+    " and |logFC| > ", report_params$logFC_cutoff, "), organized by annotation category.</em></p>",
     "<table class='table table-striped'>",
     "<thead><tr><th>Contrast</th><th>DA Promoter Regions</th><th>DA All Annotated Regions</th></tr></thead>",
     "<tbody>",
@@ -782,6 +790,32 @@ knitr::asis_output(
           "<td><strong>", cn, "</strong></td>",
           "<td>", promoter_buttons[[i]], "</td>",
           "<td>", allregion_buttons[[i]], "</td>",
+          "</tr>"
+        )
+      }),
+      collapse = ""
+    ),
+    "</tbody></table>"
+  )
+)
+```
+
+```{r download full results,eval = !params$test_mode}
+knitr::asis_output(
+  paste(
+    "<h3>Download Complete Differential Accessibility Results</h3>",
+    "<p><em>These downloads contain all tested peaks regardless of significance, including statistics for every peak that passed filtering. ",
+    "Note: These files may be large.</em></p>",
+    "<table class='table table-striped'>",
+    "<thead><tr><th>Contrast</th><th>Full Results (All Peaks)</th></tr></thead>",
+    "<tbody>",
+    paste0(
+      lapply(seq_along(full_results_lists), function(i) {
+        cn <- names(full_results_lists)[i]
+        paste(
+          "<tr>",
+          "<td><strong>", cn, "</strong></td>",
+          "<td>", full_results_buttons[[i]], "</td>",
           "</tr>"
         )
       }),
@@ -806,122 +840,6 @@ Datahubs also include BigWig signal tracks for each individual sample, colored b
 
 ```{r create washU datahubs, eval = !params$test_mode, results='hide', message=FALSE, echo=FALSE}
 library(jsonlite)
-
-# Helper function to copy file to web directory
-copy_file_to_web <- function(source_path, dest_dir, filename) {
-  if (file.exists(source_path)) {
-    dest_path <- file.path(dest_dir, filename)
-    file.copy(source_path, dest_path, overwrite = TRUE)
-    system2("chmod", args = c("644", dest_path))
-    return(TRUE)
-  }
-  return(FALSE)
-}
-
-create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
-  # Filter significant peaks
-  sig_peaks <- results_df %>%
-    filter(FDR < report_params$sig_cutoff, abs(logFC) > report_params$logFC_cutoff, logCPM > 2, !is.na(Gene.Name))
-  
-  if (nrow(sig_peaks) == 0) {
-    cat("No significant peaks found for", contrast_name, "\n")
-    return(NULL)
-  }
-  
-  # Extract group names from contrast for direction annotation
-  group_names <- strsplit(contrast_name, "_vs_")[[1]]
-  group1 <- group_names[1]
-  group2 <- if(length(group_names) > 1) group_names[2] else "baseline"
-  
-  # Detect column names flexibly (HOMER vs ChIPseeker compatibility)
-  chr_col <- if ("Chr" %in% colnames(sig_peaks)) "Chr" else "seqnames"
-  start_col <- if ("Start" %in% colnames(sig_peaks)) "Start" else "start"
-  end_col <- if ("End" %in% colnames(sig_peaks)) "End" else "end"
-  strand_col <- if ("Strand" %in% colnames(sig_peaks)) "Strand" else "strand"
-  
-  # Debug: show detected columns
-  cat("Detected columns for", contrast_name, ":\n")
-  cat("  Chr:", chr_col, "Start:", start_col, "End:", end_col, "Strand:", strand_col, "\n")
-  
-  # Create BED format data with directional annotations
-  bed_data <- sig_peaks %>%
-    mutate(
-      Chr = as.character(.[[chr_col]]),
-      Start = .[[start_col]],
-      End = .[[end_col]],
-      Strand = if (strand_col %in% colnames(.)) .[[strand_col]] else ".",
-      # Create directional peak names
-      base_name = ifelse(!is.na(Gene.Name) & Gene.Name != "", Gene.Name, interval),
-      direction_suffix = ifelse(logFC > report_params$logFC_cutoff, 
-                               paste0("_MORE_ACC_IN_", toupper(group1)), 
-                               paste0("_MORE_ACC_IN_", toupper(group2))),
-      peak_name = paste0(base_name, direction_suffix)
-    ) %>%
-    select(Chr, Start, End, peak_name, logFC, FDR, Strand) %>%
-    mutate(
-      Chr = ifelse(grepl("^chr", Chr), Chr, paste0("chr", Chr)),
-      # Convert scores to integers (BED format requirement)
-      score = as.integer(ifelse(logFC > report_params$logFC_cutoff,
-                               pmin(1000, pmax(600, 600 + abs(logFC) * 100)), # Up: 600-1000
-                               pmin(500, pmax(200, 500 - abs(logFC) * 100)))), # Down: 200-500
-      strand = Strand  # Rename to standard lowercase for BED output
-    ) %>%
-    select(Chr, Start, End, peak_name, score, strand)  # Final BED format
-  
-  # Debug output
-  cat("Sample directional peak names for", contrast_name, ":\n")
-  sample_names <- head(bed_data$peak_name, 3)
-  cat(paste(sample_names, collapse = "\n"), "\n")
-  cat("Sample scores:", head(bed_data$score, 3), "\n\n")
-  
-  # Write BED file (unsorted)
-  bed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks.bed"))
-  write.table(bed_data, bed_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
-  
-  # Sort with system command (bedToBigBed requires this exact sorting)
-  sorted_bed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks_sorted.bed"))
-  system2("sort", args = c("-k1,1", "-k2,2n", bed_file), stdout = sorted_bed_file,
-          env = c("LC_COLLATE=C"))
-  
-  # Set up for BigBed conversion
-  chrom_sizes_file <- if (organism == "mmu") "mm10.chrom.sizes" else "hg38.chrom.sizes"
-  genome_alias <- if (organism == "mmu") "mm10" else "hg38"
-  
-  # Download chrom.sizes if needed
-  if (!file.exists(chrom_sizes_file)) {
-    download.file(
-      paste0("http://hgdownload.soe.ucsc.edu/goldenPath/", genome_alias, "/bigZips/", genome_alias, ".chrom.sizes"),
-      chrom_sizes_file
-    )
-  }
-  
-  # Find bedToBigBed
-  bedToBigBed_path <- Sys.which("bedToBigBed")
-  if (bedToBigBed_path == "") {
-    alt_path <- "/apps/ucsc/20210803/bedToBigBed"
-    if (file.exists(alt_path)) {
-      bedToBigBed_path <- alt_path
-    } else {
-      stop("bedToBigBed not found")
-    }
-  }
-  
-  # Convert to BigBed
-  bigbed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks.bb"))
-  result <- system2(bedToBigBed_path, args = c(sorted_bed_file, chrom_sizes_file, bigbed_file),
-                   stdout = TRUE, stderr = TRUE)
-  
-  # Check if conversion succeeded
-  if (file.exists(bigbed_file) && file.size(bigbed_file) > 1000) {
-    system2("chmod", args = c("644", bigbed_file))
-    cat("Successfully created BigBed:", basename(bigbed_file), "\n")
-    return(paste0(contrast_name, "_DA_peaks.bb"))
-  } else {
-    cat("BigBed conversion failed for", contrast_name, "\n")
-    if (length(result) > 0) cat("Error:", paste(result, collapse = "\n"), "\n")
-    return(NULL)
-  }
-}
 
 # Create datahubs for each contrast
 washU_urls <- list()
@@ -1122,26 +1040,6 @@ Peaks are colored based on statistical significance and direction of change: red
 These plots are useful for assessing the global characteristics of each contrast — for example, whether one group has more widespread accessibility changes, whether there is an even distribution of up- and down-regulated peaks, and whether extreme fold changes are occurring mostly in low-abundance regions (which may reflect noise). They also help confirm that log fold changes are centered around zero in non-significant peaks, as expected when normalization and modeling are appropriately specified.
 
 ```{r ma plots, eval = !params$test_mode}
-# Reusable preprocessing helper
-preprocess_result <- function(df, contrast) {
-  groups <- str_trim(str_split(gsub("\\.", "-", contrast), "_vs_", simplify = TRUE))
-  df$group1 <- groups[1]
-  df$group2 <- groups[2]
-  df$Accessibility <- case_when(
-    df$FDR < report_params$sig_cutoff & df$logFC > report_params$logFC_cutoff  ~ paste0("More accessible in ", df$group1),
-    df$FDR < report_params$sig_cutoff & df$logFC < -report_params$logFC_cutoff ~ paste0("More accessible in ", df$group2),
-    TRUE                          ~ "Not Significant"
-  )
-  
-  df$Significant <- case_when(
-    df$FDR < report_params$sig_cutoff & df$logFC > report_params$logFC_cutoff  ~ "more",
-    df$FDR < report_params$sig_cutoff & df$logFC < -report_params$logFC_cutoff ~ "less",
-    TRUE                          ~ "ns"
-  )
-  
-  df$negLogFDR <- -log10(df$FDR)
-  df
-}
 
 # Interactive MA plots with plotly
 ma_results <- lapply(names(results_list), function(contrast) {

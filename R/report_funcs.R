@@ -1138,3 +1138,152 @@ plot_pca <- function(dge, title, show_legend = TRUE,plot_var) {
   
   return(list(plot = fig, title = title))  # Return both plot and title
 }
+
+clean_group_name <- function(name) {
+  if (grepl("^X\\d", name)) {
+    return(substring(name, 2))
+  }
+  return(name)
+}
+clean_group_name <- function(name) {
+  if (grepl("^X\\d", name)) {
+    return(substring(name, 2))
+  }
+  return(name)
+}
+copy_file_to_web <- function(source_path, dest_dir, filename) {
+  if (file.exists(source_path)) {
+    dest_path <- file.path(dest_dir, filename)
+    file.copy(source_path, dest_path, overwrite = TRUE)
+    system2("chmod", args = c("644", dest_path))
+    return(TRUE)
+  }
+  return(FALSE)
+}
+create_da_bigbed <- function(results_df, contrast_name, output_dir, 
+                             organism) {
+  sig_peaks <- results_df %>% filter(FDR < report_params$sig_cutoff, 
+                                     abs(logFC) > report_params$logFC_cutoff, logCPM > 2, 
+                                     !is.na(Gene.Name))
+  if (nrow(sig_peaks) == 0) {
+    cat("No significant peaks found for", contrast_name, 
+        "\n")
+    return(NULL)
+  }
+  group_names <- strsplit(contrast_name, "_vs_")[[1]]
+  group1 <- group_names[1]
+  group2 <- if (length(group_names) > 1) 
+    group_names[2]
+  else "baseline"
+  chr_col <- if ("Chr" %in% colnames(sig_peaks)) 
+    "Chr"
+  else "seqnames"
+  start_col <- if ("Start" %in% colnames(sig_peaks)) 
+    "Start"
+  else "start"
+  end_col <- if ("End" %in% colnames(sig_peaks)) 
+    "End"
+  else "end"
+  strand_col <- if ("Strand" %in% colnames(sig_peaks)) 
+    "Strand"
+  else "strand"
+  cat("Detected columns for", contrast_name, ":\n")
+  cat("  Chr:", chr_col, "Start:", start_col, "End:", end_col, 
+      "Strand:", strand_col, "\n")
+  standard_chroms <- if (organism == "mmu") {
+    paste0("chr", c(1:19, "X", "Y", "M"))
+  }
+  else {
+    paste0("chr", c(1:22, "X", "Y", "M"))
+  }
+  bed_data <- sig_peaks %>% mutate(Chr = as.character(.[[chr_col]]), 
+                                   Start = .[[start_col]], End = .[[end_col]], Strand = if (strand_col %in% 
+                                                                                            colnames(.)) 
+                                     .[[strand_col]]
+                                   else ".", base_name = ifelse(!is.na(Gene.Name) & Gene.Name != 
+                                                                  "", Gene.Name, interval), direction_suffix = ifelse(logFC > 
+                                                                                                                        report_params$logFC_cutoff, paste0("_MORE_ACC_IN_", 
+                                                                                                                                                           toupper(group1)), paste0("_MORE_ACC_IN_", toupper(group2))), 
+                                   peak_name = paste0(base_name, direction_suffix)) %>% 
+    mutate(Chr = ifelse(grepl("^chr", Chr), Chr, paste0("chr", 
+                                                        Chr))) %>% filter(Chr %in% standard_chroms) %>% select(Chr, 
+                                                                                                               Start, End, peak_name, logFC, FDR, Strand) %>% mutate(score = as.integer(ifelse(logFC > 
+                                                                                                                                                                                                 report_params$logFC_cutoff, pmin(1000, pmax(600, 600 + 
+                                                                                                                                                                                                                                               abs(logFC) * 100)), pmin(500, pmax(200, 500 - abs(logFC) * 
+                                                                                                                                                                                                                                                                                    100)))), strand = Strand) %>% select(Chr, Start, End, 
+                                                                                                                                                                                                                                                                                                                         peak_name, score, strand)
+  if (nrow(bed_data) == 0) {
+    cat("No peaks on standard chromosomes for", contrast_name, 
+        "\n")
+    return(NULL)
+  }
+  cat("Sample directional peak names for", contrast_name, ":\n")
+  sample_names <- head(bed_data$peak_name, 3)
+  cat(paste(sample_names, collapse = "\n"), "\n")
+  cat("Sample scores:", head(bed_data$score, 3), "\n")
+  cat("Peaks retained after chromosome filtering:", nrow(bed_data), 
+      "\n\n")
+  bed_file <- file.path(output_dir, paste0(contrast_name, "_DA_peaks.bed"))
+  write.table(bed_data, bed_file, sep = "\t", quote = FALSE, 
+              row.names = FALSE, col.names = FALSE)
+  sorted_bed_file <- file.path(output_dir, paste0(contrast_name, 
+                                                  "_DA_peaks_sorted.bed"))
+  system2("sort", args = c("-k1,1", "-k2,2n", bed_file), stdout = sorted_bed_file, 
+          env = c("LC_COLLATE=C"))
+  chrom_sizes_file <- if (organism == "mmu") 
+    "mm10.chrom.sizes"
+  else "hg38.chrom.sizes"
+  genome_alias <- if (organism == "mmu") 
+    "mm10"
+  else "hg38"
+  if (!file.exists(chrom_sizes_file)) {
+    download.file(paste0("http://hgdownload.soe.ucsc.edu/goldenPath/", 
+                         genome_alias, "/bigZips/", genome_alias, ".chrom.sizes"), 
+                  chrom_sizes_file)
+  }
+  bedToBigBed_path <- Sys.which("bedToBigBed")
+  if (bedToBigBed_path == "") {
+    alt_path <- "/apps/ucsc/20210803/bedToBigBed"
+    if (file.exists(alt_path)) {
+      bedToBigBed_path <- alt_path
+    }
+    else {
+      stop("bedToBigBed not found")
+    }
+  }
+  bigbed_file <- file.path(output_dir, paste0(contrast_name, 
+                                              "_DA_peaks.bb"))
+  result <- system2(bedToBigBed_path, args = c(sorted_bed_file, 
+                                               chrom_sizes_file, bigbed_file), stdout = TRUE, stderr = TRUE)
+  if (file.exists(bigbed_file) && file.size(bigbed_file) > 
+      1000) {
+    system2("chmod", args = c("644", bigbed_file))
+    cat("Successfully created BigBed:", basename(bigbed_file), 
+        "\n")
+    return(paste0(contrast_name, "_DA_peaks.bb"))
+  }
+  else {
+    cat("BigBed conversion failed for", contrast_name, "\n")
+    if (length(result) > 0) 
+      cat("Error:", paste(result, collapse = "\n"), "\n")
+    return(NULL)
+  }
+}
+preprocess_result <- function(df, contrast) {
+  groups <- str_trim(str_split(gsub("\\.", "-", contrast), 
+                               "_vs_", simplify = TRUE))
+  df$group1 <- groups[1]
+  df$group2 <- groups[2]
+  df$Accessibility <- case_when(df$FDR < report_params$sig_cutoff & 
+                                  df$logFC > report_params$logFC_cutoff ~ paste0("More accessible in ", 
+                                                                                 df$group1), df$FDR < report_params$sig_cutoff & df$logFC < 
+                                  -report_params$logFC_cutoff ~ paste0("More accessible in ", 
+                                                                       df$group2), TRUE ~ "Not Significant")
+  df$Significant <- case_when(df$FDR < report_params$sig_cutoff & 
+                                df$logFC > report_params$logFC_cutoff ~ "more", df$FDR < 
+                                report_params$sig_cutoff & df$logFC < -report_params$logFC_cutoff ~ 
+                                "less", TRUE ~ "ns")
+  df$negLogFDR <- -log10(df$FDR)
+  df
+}
+

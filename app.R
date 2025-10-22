@@ -358,10 +358,15 @@ ui <- fluidPage(
         conditionalPanel(
           condition = "input.analysis_mode != 'prepare_only'",
           div(class = "param-group",
-              h4("Filtering Parameters"),
+              h4("Peak Filtering Parameters"),
               fluidRow(
                 column(6, numericInput("min_count_for_filtering", "Min Count for Filtering", value = 10, min = 0)),
                 column(6, numericInput("min_prop_for_filtering", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
+              ),
+              h4("Significance Filtering Parameters"),
+              fluidRow(
+                column(6, numericInput("sig_cutoff", "FDR Significance Cutoff", value = 0.05, min = 0, max = 1, step = 0.01)),
+                column(6, numericInput("logFC_cutoff", "LogFC Cutoff", value = 1, min = 0, step = 0.5))
               )
           )
         ),
@@ -544,13 +549,18 @@ ui <- fluidPage(
         ),
         # Filtering Parameters (required for all modes)
         div(class = "param-group",
-            h4("Filtering Parameters"),
+            h4("Peak Filtering Parameters"),
             fluidRow(
               column(6, numericInput("min_count_for_filtering_analyze", "Min Count for Filtering", value = 10, min = 0)),
               column(6, numericInput("min_prop_for_filtering_analyze", "Min Proportion for Filtering", value = 0.5, min = 0, max = 1, step = 0.05))
+            ),
+            h4("Significance Filtering Parameters"),
+            fluidRow(
+              column(6, numericInput("sig_cutoff_analyze", "FDR Significance Cutoff", value = 0.05, min = 0, max = 1, step = 0.01)),
+              column(6, numericInput("logFC_cutoff_analyze", "LogFC Cutoff", value = 1, min = 0, step = 0.5))
             )
         )
-    )
+        )
   ),
   # Optional Parameters (hidden in prepare_only mode)
   conditionalPanel(
@@ -1396,9 +1406,7 @@ server <- function(input, output, session) {
       showNotification(paste("File uploaded to output directory:", output_file_path), type = "message")
     }
   })
-  
-  # Test the upload observer
-  # Fix the upload observer - copy to permanent location
+
   observeEvent(input$upload_existing_params, {
     cat("DEBUG: Upload observer triggered\n")
     if (!is.null(input$upload_existing_params)) {
@@ -1574,6 +1582,15 @@ server <- function(input, output, session) {
         updateNumericInput(session, "min_prop_for_filtering_analyze", value = as.numeric(params$min_prop_for_filtering))
       }
       
+      if ("sig_cutoff" %in% names(params)) {
+        updateNumericInput(session, "sig_cutoff", value = as.numeric(params$sig_cutoff))
+        updateNumericInput(session, "sig_cutoff_analyze", value = as.numeric(params$sig_cutoff))
+      }
+      if ("logFC_cutoff" %in% names(params)) {
+        updateNumericInput(session, "logFC_cutoff", value = as.numeric(params$logFC_cutoff))
+        updateNumericInput(session, "logFC_cutoff_analyze", value = as.numeric(params$logFC_cutoff))
+      }
+      
       # ===== OPTIONAL URLs - Same for both modes =====
       if ("raw_seq_URL" %in% names(params)) {
         updateTextInput(session, "raw_seq_URL", value = params$raw_seq_URL)
@@ -1639,6 +1656,7 @@ server <- function(input, output, session) {
       if ("peak_files" %in% names(params)) {
         peak_files_parsed <- parse_file_pairs(params$peak_files)
         values$selected_files$peak_files <- peak_files_parsed
+        values$selected_files$peak_files_analyze <- peak_files_parsed  # Add this line for analyze mode
       }
       
       if ("bigwig_files" %in% names(params)) {
@@ -1669,8 +1687,6 @@ server <- function(input, output, session) {
       if ("qc_frip_file" %in% names(params)) {
         values$selected_files$qc_frip_file <- params$qc_frip_file
       }
-      # In your observeEvent(input$load_existing_params, ...) function, add:
-      
       if ("variable" %in% names(params)) {
         # Need to wait for the UI to be rendered before updating
         observe({
@@ -1902,9 +1918,12 @@ server <- function(input, output, session) {
       hipergator_group_field <- input$hipergator_group
       output_path_field <- input$output_path
       user_email_field <- input$user_email
-      min_count_field <- NULL  # Not needed for prepare_only
-      min_prop_field <- NULL   # Not needed for prepare_only
-      contrasts_text_field <- NULL  # Not needed for prepare_only
+      # Not needed for prepare_only
+      min_count_field <- NULL  
+      min_prop_field <- NULL  
+      sig_cutoff_field <- NULL
+      logFC_cutoff_field <- NULL
+      contrasts_text_field <- NULL  
       if (is.null(values$selected_files$bam_files)) {
         messages <- c(messages, "❌ BAM files are required for data preparation")
       }
@@ -1922,6 +1941,8 @@ server <- function(input, output, session) {
       user_email_field <- input$user_email
       min_count_field <- input$min_count_for_filtering
       min_prop_field <- input$min_prop_for_filtering
+      sig_cutoff_field <- input$sig_cutoff          
+      logFC_cutoff_field <- input$logFC_cutoff  
       contrasts_text_field <- input$contrasts_text
   
       # Check that either DDS file OR BAM files are provided for non-analyze modes
@@ -2120,6 +2141,8 @@ server <- function(input, output, session) {
       user_email_field <- input$user_email_analyze
       min_count_field <- input$min_count_for_filtering_analyze
       min_prop_field <- input$min_prop_for_filtering_analyze
+      sig_cutoff_field <- input$sig_cutoff_analyze
+      logFC_cutoff_field <- input$logFC_cutoff_analyze  
       contrasts_text_field <- input$contrasts_text_analyze
       # Use analyze-only file keys
       sample_sheet_key <- "sample_sheet_analyze"
@@ -2135,8 +2158,8 @@ server <- function(input, output, session) {
       hipergator_group_field <- input$hipergator_group
       output_path_field <- input$output_path
       user_email_field <- input$user_email
-      min_count_field <- input$min_count_for_filtering
-      min_prop_field <- input$min_prop_for_filtering
+      #min_count_field <- input$min_count_for_filtering
+      #min_prop_field <- input$min_prop_for_filtering
       contrasts_text_field <- input$contrasts_text_optional
       # Use original file keys but optional contrasts
       sample_sheet_key <- "sample_sheet"
@@ -2154,6 +2177,8 @@ server <- function(input, output, session) {
       user_email_field <- input$user_email
       min_count_field <- input$min_count_for_filtering
       min_prop_field <- input$min_prop_for_filtering
+      sig_cutoff_field <- input$sig_cutoff  
+      logFC_cutoff_field <- input$logFC_cutoff         
       contrasts_text_field <- input$contrasts_text
       # Use original file keys
       sample_sheet_key <- "sample_sheet"
@@ -2172,6 +2197,8 @@ server <- function(input, output, session) {
     lines <- c(lines, paste("--user_email", shQuote(user_email_field)))
     lines <- c(lines, paste("--min_count_for_filtering", min_count_field))
     lines <- c(lines, paste("--min_prop_for_filtering", min_prop_field))
+    lines <- c(lines, paste("--sig_cutoff", if(input$analysis_mode == "analyze_only") input$sig_cutoff_analyze else input$sig_cutoff))
+    lines <- c(lines, paste("--logFC_cutoff", if(input$analysis_mode == "analyze_only") input$logFC_cutoff_analyze else input$logFC_cutoff))
     # In your generate_params_content function, add this after the filtering parameters:
     
     # Add variable selection for analysis modes (both modes use the same param name)

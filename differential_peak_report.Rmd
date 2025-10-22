@@ -795,9 +795,10 @@ knitr::asis_output(
 # Visualization of Differential Accessibility
 
 ## WashU Epigenome Browser Datahubs
+
 WashU datahubs were generated for each contrast to support interactive visualization of differential accessibility results. These datahubs allow genomic regions of interest to be viewed alongside signal tracks from individual samples in the WashU Epigenome Browser.
 
-For each contrast, a set of filtered differentially accessible (DA) peaks was converted to BigBed format for browser visualization. **Peaks were filtered to retain those with a false discovery rate (FDR) less than 0.05, an absolute log2 fold change greater than 1, an average accessibility (logCPM) greater than 2, and an annotated gene name.** These filtered peaks were included as a track within the datahub.
+For each contrast, a set of filtered differentially accessible (DA) peaks was converted to BigBed format for browser visualization. **Peaks were filtered to retain those with a false discovery rate (FDR) less than `r report_params$sig_cutoff`, an absolute log2 fold change greater than `r report_params$logFC_cutoff`, an average accessibility (logCPM) greater than 2, and an annotated gene name.** These filtered peaks were included as a track within the datahub.
 
 Datahubs also include BigWig signal tracks for each individual sample, colored by experimental group to compare accessibility profiles across replicates and conditions in the genome browser. All datahubs are hosted on a web-accessible directory and accessible via the WashU Epigenome Browser.
 
@@ -820,7 +821,7 @@ copy_file_to_web <- function(source_path, dest_dir, filename) {
 create_da_bigbed <- function(results_df, contrast_name, output_dir, organism) {
   # Filter significant peaks
   sig_peaks <- results_df %>%
-    filter(FDR < report_params$sig_cutoff, abs(logFC) > 1, logCPM > 2, !is.na(Gene.Name))
+    filter(FDR < report_params$sig_cutoff, abs(logFC) > report_params$logFC_cutoff, logCPM > 2, !is.na(Gene.Name))
   
   if (nrow(sig_peaks) == 0) {
     cat("No significant peaks found for", contrast_name, "\n")
@@ -1116,7 +1117,7 @@ tagList(interactive_plots)
 
 MA plots visualize the relationship between average accessibility (log<sub>2</sub> CPM) and differential accessibility (log<sub>2</sub> fold change) for each peak within a given contrast. Each point represents a consensus peak, with its position determined by its average accessibility across all samples (x-axis) and the estimated log fold change between groups (y-axis).
 
-Peaks are colored based on statistical significance and direction of change: red indicates peaks more accessible in one group, blue indicates peaks more accessible in the other, and gray represents non-significant differences. Only peaks with an absolute log<sub>2</sub> fold change greater than 1 and an FDR below 0.05 are considered significant.
+Peaks are colored based on statistical significance and direction of change: red indicates peaks more accessible in one group, blue indicates peaks more accessible in the other, and gray represents non-significant differences. Only peaks with an absolute log<sub>2</sub> fold change greater than `r report_params$logFC_cutoff` and an FDR below `r report_params$sig_cutoff` are considered significant.
 
 These plots are useful for assessing the global characteristics of each contrast — for example, whether one group has more widespread accessibility changes, whether there is an even distribution of up- and down-regulated peaks, and whether extreme fold changes are occurring mostly in low-abundance regions (which may reflect noise). They also help confirm that log fold changes are centered around zero in non-significant peaks, as expected when normalization and modeling are appropriately specified.
 
@@ -1127,14 +1128,14 @@ preprocess_result <- function(df, contrast) {
   df$group1 <- groups[1]
   df$group2 <- groups[2]
   df$Accessibility <- case_when(
-    df$FDR < report_params$sig_cutoff & df$logFC > 1  ~ paste0("More accessible in ", df$group1),
-    df$FDR < report_params$sig_cutoff & df$logFC < -1 ~ paste0("More accessible in ", df$group2),
+    df$FDR < report_params$sig_cutoff & df$logFC > report_params$logFC_cutoff  ~ paste0("More accessible in ", df$group1),
+    df$FDR < report_params$sig_cutoff & df$logFC < -report_params$logFC_cutoff ~ paste0("More accessible in ", df$group2),
     TRUE                          ~ "Not Significant"
   )
   
   df$Significant <- case_when(
-    df$FDR < report_params$sig_cutoff & df$logFC > 1  ~ "more",
-    df$FDR < report_params$sig_cutoff & df$logFC < -1 ~ "less",
+    df$FDR < report_params$sig_cutoff & df$logFC > report_params$logFC_cutoff  ~ "more",
+    df$FDR < report_params$sig_cutoff & df$logFC < -report_params$logFC_cutoff ~ "less",
     TRUE                          ~ "ns"
   )
   
@@ -1187,7 +1188,7 @@ tagList(lapply(ma_results, function(x) x$interactive_plot))
 
 Volcano plots summarize the results of differential accessibility analysis by displaying the magnitude of change (log<sub>2</sub> fold change) on the x-axis and statistical significance (–log<sub>10</sub> FDR) on the y-axis. Each point represents a consensus peak tested within a given contrast.
 
-Peaks are colored based on statistical significance and direction of change: red indicates peaks more accessible in one group, blue indicates peaks more accessible in the other, and gray represents non-significant differences. Only peaks with an absolute log<sub>2</sub> fold change greater than 1 and an FDR below 0.05 are considered significant.
+Peaks are colored based on statistical significance and direction of change: red indicates peaks more accessible in one group, blue indicates peaks more accessible in the other, and gray represents non-significant differences. Only peaks with an absolute log<sub>2</sub> fold change greater than `r report_params$logFC_cutoff` and an FDR below `r report_params$sig_cutoff` are considered significant.
 
 Volcano plots are used to assess the overall strength and distribution of differential accessibility signals in each contrast. They help reveal whether a contrast has many significant peaks or only a few, whether the effect sizes are modest or extreme, and whether the signal is symmetric or biased toward one condition. Like MA plots, volcano plots serve as a quality check to confirm that differential patterns are consistent with expectations and that significance is not driven solely by low-count or high-variance regions.
 
@@ -1250,7 +1251,7 @@ Pathway enrichment analysis was performed to identify functional enrichment of g
 
 ## Differentially Accessible Genes
 
-To create gene lists to input into enrichment analyses, differentially accessible peaks were filtered by FDR < report_params$sig_cutoff and split into more accessible in left group relative to right group (logFC >1) and less accessible (logFC < 1). From these filtered peaks, those annotated with entrez IDs were selected and these entrez IDs were used as input into the enrichment analysis.
+To create gene lists to input into enrichment analyses, differentially accessible peaks were filtered by FDR < `r report_params$sig_cutoff` and split into more accessible in left group relative to right group (logFC > `r report_params$logFC_cutoff`) and less accessible (logFC < -`r report_params$logFC_cutoff`). From these filtered peaks, those annotated with entrez IDs were selected and these entrez IDs were used as input into the enrichment analysis.
 
 ```{r make gene lists, eval = !params$test_mode}
 library("AnnotationDbi")
@@ -1301,12 +1302,12 @@ for (contrast in names(results_list)) {
   }
   
   up_genes <- df %>%
-    filter(FDR < report_params$sig_cutoff, logFC > 1) %>%
+    filter(FDR < report_params$sig_cutoff, logFC > report_params$logFC_cutoff) %>%
     pull(ENTREZID) %>%
     na.omit() %>% unique()
   
   down_genes <- df %>%
-    filter(FDR < report_params$sig_cutoff, logFC < -1) %>%
+    filter(FDR < report_params$sig_cutoff, logFC < -report_params$logFC_cutoff) %>%
     pull(ENTREZID) %>%
     na.omit() %>% unique()
   
@@ -1356,7 +1357,7 @@ if ("geneId" %in% colnames(de_results_df)) {
 
 ## Gene Ontology (GO) Enrichment Analysis
 
-Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that term.
+Gene Ontology enrichment of gene annotation of differentially accessibile regions was performed using the enrichGO function in clusterProfiler v4.8 (Yu et al. 2012) in each of three GO categories (BP, MF, CC). **Interactive GO enrichment plots** are based on the top 10 significantly enriched GO terms per GO category per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DA FDR) in that term.
 
 To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 
@@ -1430,7 +1431,7 @@ if (length(GO_results_list) > 0) {
 
 ## KEGG Pathway Enrichment Analysis
 
-KEGG enrichment was performed using the enrichKEGG function in clusterProfiler v4.8 (Yu et al. 2012). **Interactive KEGG enrichment plots** are based on the top 10 significantly enriched KEGG pathways per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DE adj.p.value) in that pathway.
+KEGG enrichment was performed using the enrichKEGG function in clusterProfiler v4.8 (Yu et al. 2012). **Interactive KEGG enrichment plots** are based on the top 10 significantly enriched KEGG pathways per gene list. Hover over the plot to view p-value, gene ratio, and up to the top 20 DE genes (sorted by DA FDR) in that pathway.
 
 To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 pathway, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 

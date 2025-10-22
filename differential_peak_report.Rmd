@@ -979,12 +979,12 @@ use_ensembl_style <- if (!is.null(analysis_data[["file_specs"]]$peak_annotation)
   }
   
   # Clean condition names in dge object to match our cleaned group names
-  dge$samples$Condition <- sapply(dge$samples$Condition, clean_group_name)
-  
+ # dge$samples$Condition <- sapply(dge$samples$Condition, clean_group_name)
+  dge$samples[[report_params$variable]] <- sapply(dge$samples[[report_params$variable]], clean_group_name)
   # Add BigWig tracks for each group
   for (group in c(group1, group2)) {
     # Find samples for this group
-    group_samples <- rownames(dge$samples)[dge$samples$Condition == group]
+    group_samples <- rownames(dge$samples)[dge$samples[[report_params$variable]] == group]
     
     for (sample in group_samples) {
       # Clean the sample name to match bigwig_files keys

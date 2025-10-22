@@ -1072,7 +1072,7 @@ plot_pca <- function(dge, title, show_legend = TRUE,plot_var) {
   
   # Get PC scores and variance explained
   scores <- as.data.frame(pca_res$x[, 1:2])
-  percentVar <- round(100 * pca_res$sdev^2 / sum(pca_res$sdev^2), 1)
+  percentVar <- round(100 * pca_res$sdev^2 / sum(pca_res$sdev^2), 2)  # Use 2 decimal places
   
   # Get sample info
   samples_df <- as.data.frame(dge$samples)

@@ -13,9 +13,7 @@ get_peak_calling_text <- function(peak_caller, consensus_method, pipeline = NULL
       "A consensus peakset was generated across all samples by merging all individual peak sets ",
       "using bedtools merge, without filtering for reproducibility or requiring presence in a ",
       "minimum number of replicates. This approach produces a union of all detected peaks ",
-      "across all samples. Read counts were first quantified over the global consensus peakset, ",
-      "which was then filtered per contrast to retain only peaks present in the relevant samples ",
-      "for downstream differential accessibility analysis."
+      "across all samples. Read counts were quantified over the global consensus peakset."
     )
     
   } else if (peak_caller == "genrich") {
@@ -28,8 +26,7 @@ get_peak_calling_text <- function(peak_caller, consensus_method, pipeline = NULL
       "detection of reproducible accessible regions. This reproducibility-based filtering ",
       "approach reduces noise from singleton peaks while maintaining biologically relevant ",
       "accessible regions. Read counts were quantified over the consensus peakset using ",
-      "featureCounts, and the resulting count matrix was then filtered per contrast to retain ",
-      "only peaks present in the relevant samples for downstream differential accessibility analysis."
+      "featureCounts."
     )
     
   } else {

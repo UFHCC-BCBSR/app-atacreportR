@@ -876,59 +876,11 @@ knitr::kable(
 Barplots show the number of differentially accessible (DA) peaks within each annotation category (e.g., promoter, intron, intergenic) for each contrast. Peaks were grouped based on their significance and direction of accessibility (i.e., more accessible in one group vs. the other, or not significant).
 
 ```{r plot_accessibility_ggplotly, message=FALSE, warning=FALSE, eval = !params$test_mode}
-# STEP 1: Combine all contrasts into one long dataframe
-all_results <- bind_rows(
-  lapply(names(results_list), function(contrast) {
-    df <- results_list[[contrast]]$table
-    df$contrast <- contrast
-    
-    parts <- str_split(contrast, "_vs_", simplify = TRUE)
-    left <- clean_group_name(parts[1])
-    right <- clean_group_name(parts[2])
-    
-    df <- df %>%
-      mutate(significance = case_when(
-        FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ 
-          paste0(right, "\n(More Accessible)"),
-        FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ 
-          paste0(left, "\n(More Accessible)"),
-        TRUE ~ "Not Significant"
-      ))
-    return(df)
-  })
+plot_da_by_annotation(
+  results_list = results_list,
+  sig_cutoff = report_params$sig_cutoff,
+  logfc_cutoff = report_params$logFC_cutoff
 )
-
-# STEP 2: One ggplotly plot per contrast
-interactive_plots <- lapply(unique(all_results$contrast), function(cn) {
-  contrast_df <- all_results %>% filter(contrast == cn)
-  contrast_df <- contrast_df %>% filter(!is.na(Annotation_short))
-  
-  # Create display name
-  parts <- str_split(cn, "_vs_", simplify = TRUE)
-  contrast_display <- paste(clean_group_name(parts[1]), "vs", clean_group_name(parts[2]))
-  
-  p <- ggplot(contrast_df, aes(x = significance, fill = Annotation_short)) +
-    geom_bar(stat = "count", position = "stack", width = 0.6) +
-    geom_text(stat = "count", aes(label = after_stat(count)),
-              position = position_stack(vjust = 0.5), size = 3) +
-    scale_fill_brewer(palette = "Paired") +
-    labs(
-      title = paste("Consensus Peak Annotation by Accessibility Category:\n", contrast_display),
-      x = "Accessibility Category",
-      y = "Number of Consensus Peaks",
-      fill = "Annotation"
-    ) +
-    theme_minimal(base_size = 12) +
-    theme(
-      axis.text.x = element_text(angle = 0, vjust = 1, hjust = 0.5),
-      plot.margin = margin(10, 10, 40, 10)
-    )
-  
-  ggplotly(p, tooltip = c("x", "fill", "count"))
-})
-
-# STEP 3: Display all interactive plots
-tagList(interactive_plots)
 ```
 
 ## MA Plots
@@ -940,46 +892,11 @@ Peaks are colored based on statistical significance and direction of change: red
 These plots are useful for assessing the global characteristics of each contrast — for example, whether one group has more widespread accessibility changes, whether there is an even distribution of up- and down-regulated peaks, and whether extreme fold changes are occurring mostly in low-abundance regions (which may reflect noise). They also help confirm that log fold changes are centered around zero in non-significant peaks, as expected when normalization and modeling are appropriately specified.
 
 ```{r ma plots, eval = !params$test_mode}
-
-# Interactive MA plots with plotly
-ma_results <- lapply(names(results_list), function(contrast) {
-  df <- preprocess_result(results_list[[contrast]]$table, contrast)
-
-  color_values <- setNames(
-    c("red", "blue", "gray"),
-    c(
-      paste0("More accessible in ", df$group1[1]),
-      paste0("More accessible in ", df$group2[1]),
-      "Not Significant"
-    )
-  )
-  
-  df$color <- color_values[df$Accessibility]
-
-  p <- plot_ly(
-    data = df,
-    x = ~logCPM,
-    y = ~logFC,
-    type = 'scatter',
-    mode = 'markers',
-    text = ~Gene.Name,
-    color = ~Accessibility,
-    colors = color_values,
-    marker = list(size = 5, opacity = 0.6)
-  ) %>%
-    layout(
-      title = list(text = paste("MA Plot: Differential Accessibility in<br>", gsub("\\.", "-", contrast))),
-      xaxis = list(title = "log2 CPM"),
-      yaxis = list(title = "log2 Fold Change"),
-      legend = list(title = list(text = "Accessibility"))
-    )
-
-  list(interactive_plot = p)
-})
-
-# Display all interactive MA plots
-tagList(lapply(ma_results, function(x) x$interactive_plot))
-
+plot_ma(
+  results_list = results_list,
+  sig_cutoff = report_params$sig_cutoff,
+  logfc_cutoff = report_params$logFC_cutoff
+)
 ```
 
 ## Volcano Plots
@@ -991,57 +908,11 @@ Peaks are colored based on statistical significance and direction of change: red
 Volcano plots are used to assess the overall strength and distribution of differential accessibility signals in each contrast. They help reveal whether a contrast has many significant peaks or only a few, whether the effect sizes are modest or extreme, and whether the signal is symmetric or biased toward one condition. Like MA plots, volcano plots serve as a quality check to confirm that differential patterns are consistent with expectations and that significance is not driven solely by low-count or high-variance regions.
 
 ```{r volcano, eval = !params$test_mode}
-volcano_results <- lapply(names(results_list), function(contrast) {
-  df <- preprocess_result(results_list[[contrast]]$table, contrast)
-
-  # Define consistent colors
-  color_values <- setNames(
-    c("red", "blue", "gray"),
-    c(
-      paste0("More accessible in ", df$group1[1]),
-      paste0("More accessible in ", df$group2[1]),
-      "Not Significant"
-    )
-  )
-
-  df$color <- color_values[df$Accessibility]
-
-  # Create plotly volcano plot
-  p <- plot_ly(
-    data = df,
-    x = ~logFC,
-    y = ~negLogFDR,
-    type = 'scatter',
-    mode = 'markers',
-    text = ~Gene.Name,
-    color = ~Accessibility,
-    colors = color_values,
-    marker = list(size = 5, opacity = 0.6)
-  ) %>%
-    layout(
-      title = list(text = paste("Volcano Plot: Differential Accessibility in<br>", gsub("\\.", "-", contrast))),
-      xaxis = list(title = "log2 Fold Change"),
-      yaxis = list(title = "-log10(FDR)"),
-      legend = list(title = list(text = "Accessibility"))
-    )
-
-  list(interactive_plot = p)
-})
-
-# Display all volcano plots
-tagList(lapply(volcano_results, function(x) x$interactive_plot))
-
-```
-
-```{r, eval=FALSE}
-### Profile Plots by Group (deepTools)
-system2("bash", args = c(
-  "bash/make_group_profiles.sh",
-  report_params$contrasts,
-  report_params$pipeline_output,
-  file.path(report_params$outdir, "group_profiles")
-))
-```
+plot_volcano(
+  results_list = results_list,
+  sig_cutoff = report_params$sig_cutoff,
+  logfc_cutoff = report_params$logFC_cutoff
+)
 
 # Pathway Enrichment Analysis
 

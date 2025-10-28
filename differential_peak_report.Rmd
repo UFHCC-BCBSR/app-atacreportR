@@ -913,6 +913,7 @@ plot_volcano(
   sig_cutoff = report_params$sig_cutoff,
   logfc_cutoff = report_params$logFC_cutoff
 )
+```
 
 # Pathway Enrichment Analysis
 
@@ -922,106 +923,20 @@ Pathway enrichment analysis was performed to identify functional enrichment of g
 
 To create gene lists to input into enrichment analyses, differentially accessible peaks were filtered by FDR < `r report_params$sig_cutoff` and split into more accessible in left group relative to right group (logFC > `r report_params$logFC_cutoff`) and less accessible (logFC < -`r report_params$logFC_cutoff`). From these filtered peaks, those annotated with entrez IDs were selected and these entrez IDs were used as input into the enrichment analysis.
 
-```{r make gene lists, eval = !params$test_mode}
-library("AnnotationDbi")
-library("clusterProfiler")
+```{r prepare enrichment data, eval = !params$test_mode}
+# Prepare all gene lists and data for enrichment analysis
+enrichment_data <- prepare_gene_lists_for_enrichment(
+  results_list = results_list,
+  organism = report_params$organism,
+  sig_cutoff = report_params$sig_cutoff,
+  logfc_cutoff = report_params$logFC_cutoff
+)
 
-if (report_params$organism == "hsa") {
-  library("org.Hs.eg.db")
-  org_db <- org.Hs.eg.db
-} else if (report_params$organism == "mmu") {
-  library("org.Mm.eg.db")
-  org_db <- org.Mm.eg.db
-} else {
-  stop("Unsupported organism: must be 'hsa' or 'mmu'")
-}
-
-# Convert all results to named gene lists by direction
-gene_list_named <- list()
-for (contrast in names(results_list)) {
-  df <- results_list[[contrast]]$table
-  
-  # Check if we need to map IDs or if they're already Entrez IDs
-  if ("geneId" %in% colnames(df)) {
-    # ChIPseeker format - geneId is already Entrez ID
-    df$ENTREZID <- as.character(df$geneId)
-  } else if ("Entrez.ID" %in% colnames(df)) {
-    # Check if Entrez.ID column contains actual Entrez IDs or Ensembl IDs
-    sample_id <- df$Entrez.ID[!is.na(df$Entrez.ID)][1]
-    
-    if (grepl("^ENSMUSG|^ENSG", sample_id)) {
-      # These are Ensembl IDs - need to map
-      df <- df %>%
-        rename(ensembleID = Entrez.ID) %>%
-        mutate(
-          ENTREZID = as.character(mapIds(
-            org_db,
-            keys = ensembleID,
-            column = "ENTREZID",
-            keytype = "ENSEMBL",
-            multiVals = "first"
-          ))
-        )
-    } else {
-      # These are already Entrez IDs - use directly
-      df$ENTREZID <- as.character(df$Entrez.ID)
-    }
-  } else {
-    stop("Cannot find gene ID column in results")
-  }
-  
-  up_genes <- df %>%
-    filter(FDR < report_params$sig_cutoff, logFC > report_params$logFC_cutoff) %>%
-    pull(ENTREZID) %>%
-    na.omit() %>% unique()
-  
-  down_genes <- df %>%
-    filter(FDR < report_params$sig_cutoff, logFC < -report_params$logFC_cutoff) %>%
-    pull(ENTREZID) %>%
-    na.omit() %>% unique()
-  
-  # CLEAN the contrast name before using it
-  contrast_clean <- gsub("\\.", "_", contrast)
-  
-  # Remove X prefixes from contrast name
-  parts <- strsplit(contrast_clean, "_vs_")[[1]]
-  contrast_clean <- paste(clean_group_name(parts[1]), "vs", clean_group_name(parts[2]), sep = "_")
-  
-  gene_list_named[[paste0(contrast_clean, ".up")]] <- up_genes
-  gene_list_named[[paste0(contrast_clean, ".down")]] <- down_genes
-}
-```
-
-```{r prep-for-enrich, eval = !params$test_mode}
-de_results_df <- bind_rows(lapply(names(results_list), function(contrast) {
-  df <- results_list[[contrast]][["table"]]
-  df$Contrast <- contrast  # Add the contrast column
-  return(df)
-}))
-
-# Get universe of gene IDs - handle both annotation formats
-if ("geneId" %in% colnames(de_results_df)) {
-  # ChIPseeker format - geneId is already Entrez ID
-  universe_entrez <- na.omit(unique(de_results_df$geneId))
-} else if ("Entrez.ID" %in% colnames(de_results_df)) {
-  # Check what type of IDs are in Entrez.ID column
-  sample_id <- de_results_df$Entrez.ID[!is.na(de_results_df$Entrez.ID)][1]
-  
-  if (grepl("^ENSMUSG|^ENSG", sample_id)) {
-    # These are Ensembl IDs - need to map to Entrez
-    universe_entrez <- mapIds(org_db,
-                              keys = na.omit(unique(de_results_df$Entrez.ID)),
-                              column = "ENTREZID",
-                              keytype = "ENSEMBL", 
-                              multiVals = "first")
-    universe_entrez <- na.omit(universe_entrez)
-  } else {
-    # These are already Entrez IDs - use directly
-    universe_entrez <- na.omit(unique(de_results_df$Entrez.ID))
-  }
-} else {
-  stop("Cannot find gene ID column in results")
-}
+# Extract components for downstream use
+gene_list_named <- enrichment_data$gene_lists
+de_results_df <- enrichment_data$results_df
+universe_entrez <- enrichment_data$universe
+org_db <- enrichment_data$org_db
 ```
 
 ## Gene Ontology (GO) Enrichment Analysis

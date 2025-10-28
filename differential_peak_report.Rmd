@@ -26,11 +26,11 @@ date: "`r format(Sys.time(), '%m/%d/%y')`"
 knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.align="center")
 
 # Load libraries
-library(DESeq2)
+library(DESeq2) #used in load data
 library(pheatmap)
 library(ggplot2)
 library(GenomicRanges)
-library(dplyr)
+library(dplyr) # used
 library(tibble)
 library(edgeR)
 library(limma)
@@ -42,8 +42,8 @@ library(scales)
 library(stringr)
 library(downloadthis)
 library(gridExtra)
-source("text-config.R")
-source("R/report_funcs.R", local = knitr::knit_global())
+library(atacreportR) # used
+source("text-config.R") # used
 select <- dplyr::select
 
 # Edit this for interactive use
@@ -134,70 +134,30 @@ if (url == "") {
 }
 ```
 
-```{r load data,message=FALSE,echo=FALSE,results='hide'}
-source("R/data_preparation.R")
+```{r load data}
+source("scripts/rmd-helpers.R")
 
-# NEW: Use flexible data preparation
-analysis_data <- prepare_analysis_data(report_params)
+# Load analysis data (sample info is already merged into DDS colData!)
+targetGenome_dds <- prepare_analysis_data_from_params(report_params)
 
-# Extract components (same variable names as before for compatibility)
-targetGenome_dds <- analysis_data$dds
-sample_info <- analysis_data$sample_info  
-peaks_anno <- analysis_data$peaks_anno
-qc_data <- analysis_data$qc_data
-
-targetGenome_counts <- assay(targetGenome_dds, "counts")
-
-# Load  sample_info
-sample_info <- read.csv(report_params$sample_sheet, stringsAsFactors = FALSE)
-
-# Remove the technical replicate suffix added by nf-core
-sample_info$sample <- gsub("_T\\d+", "", sample_info$sample)
-
-# Remove fastq-related columns and keep unique rows
-sample_info <- sample_info %>%
-  select(-starts_with("fastq")) %>%
-  distinct()
-
-# If sample_id column is missing, create it from sample
-if (!"sample_id" %in% colnames(sample_info)) {
-  sample_info$sample_id <- sample_info$sample
-}
-
-# Match and align sample_info to dds$sample. This will definitely match if the sample_sheet is based on what was used for nf-core.
-sample_info_matched <- sample_info[match(targetGenome_dds$sample, sample_info$sample), ]
-
-# Sanity check with custom error
-if (!identical(sample_info_matched$sample, as.character(targetGenome_dds$sample))) {
-  stop('Sample names in the nf-core dds object do not match those in the sample sheet. Ensure the "sample" column has not been changed. Use "sample_id" for custom labels.')
-}
-
-# Add all non-duplicate, non-sample_id columns to colData
-meta_cols <- setdiff(colnames(sample_info_matched), c("sample", colnames(colData(targetGenome_dds))))
-colData(targetGenome_dds)[meta_cols] <- sample_info_matched[meta_cols]
-
-# Updated spike-in loading logic - prioritize direct file path over directory
+# Load spike-in data (if provided)
 if (!is.null(report_params$spikein_dds) && report_params$spikein_dds != "" && file.exists(report_params$spikein_dds)) {
-  # Method 1: Direct spike-in DDS file path (new approach)
-  message("🔄 Loading spike-in DDS from direct file path: ", basename(report_params$spikein_dds))
+  message("🔄 Loading spike-in DDS from: ", basename(report_params$spikein_dds))
   load(report_params$spikein_dds)
   spikeIn_dds <- dds
   rm(dds)
-  message("✅ Spike-in DDS loaded successfully")
+  message("✅ Spike-in DDS loaded")
 } else if (!is.null(report_params$nfcore_spikein_dir) && report_params$nfcore_spikein_dir != "") {
-  # Method 2: Legacy directory-based approach (fallback)
-  spikein_file <- paste0(report_params$nfcore_spikein_dir, "/bowtie2/merged_library/macs2/broad_peak/consensus/deseq2/consensus_peaks.mLb.clN.dds.RData")
+  spikein_file <- file.path(report_params$nfcore_spikein_dir, 
+                            "bowtie2/merged_library/macs2/broad_peak/consensus/deseq2/consensus_peaks.mLb.clN.dds.RData")
   if (file.exists(spikein_file)) {
-    message("🔄 Loading spike-in DDS from nfcore directory: ", basename(spikein_file))
     load(spikein_file)
     spikeIn_dds <- dds
     rm(dds)
-    message("✅ Spike-in DDS loaded successfully")
-  } else {
-    message("⚠️ Spike-in directory provided but file not found: ", spikein_file)
+    message("✅ Spike-in DDS loaded from nfcore directory")
   }
 } else {
-  message("ℹ️ No spike-in data provided - will use TMM normalization")
+  message("ℹ️ No spike-in data - will use TMM normalization")
 }
 ```
 
@@ -225,52 +185,45 @@ knitr::asis_output(norm_text)
 ```
 
 ```{r make DGEList and norm}
-# === Normalize counts and construct DGEList ===
-targetGenome_counts <- assay(targetGenome_dds, "counts")
+library(edgeR)
 
-if (exists("spikeIn_dds")) {
-  # --- Spike-in normalization ---
-  spikein_counts <- assay(spikeIn_dds, "counts")
-  common_samples <- intersect(colnames(targetGenome_counts), colnames(spikein_counts))
-  
-  # Subset to common samples
-  targetGenome_counts <- targetGenome_counts[, common_samples]
-  spikein_counts <- spikein_counts[, common_samples]
-  targetGenome_dds <- targetGenome_dds[, common_samples]
-  spikeIn_dds <- spikeIn_dds[, common_samples]
-  
-  # Compute spike-in normalization factors
-  targetGenome_libsizes <- colSums(targetGenome_counts)
-  spikein_libsizes <- colSums(spikein_counts)
-  spikein_ratio <- spikein_libsizes / targetGenome_libsizes
-  spikein_factors <- spikein_ratio / median(spikein_ratio)
-  norm_factors <- 1 / spikein_factors
-  
-  # Create normalized DGEList
-  dge <- DGEList(counts = targetGenome_counts)
-  dge$samples <- cbind(dge$samples, as.data.frame(colData(targetGenome_dds)))
-  dge$samples$norm.factors <- norm_factors
+# TODO: Re-enable spike-in normalization after refactoring
+# For spike-in: calculate factors, then use norm_method = "manual"
 
-} else {
-  # --- TMM normalization ---
-  cat("Spike-in data not available. Performing TMM normalization instead.\n")
-  suppressMessages(library(edgeR))
-  dge <- DGEList(counts = targetGenome_counts)
-  dge$samples <- cbind(dge$samples, as.data.frame(colData(targetGenome_dds)))
-  dge <- calcNormFactors(dge, method = "TMM")
-  norm_factors <- dge$samples$norm.factors
-}
-# === Raw DGEList for unnormalized PCA ===
-dge_raw <- dge
-dge_raw$samples$norm.factors <- rep(1, ncol(dge_raw))
+# TMM normalization
+dge <- dds_to_dgelist(targetGenome_dds, norm_method = "TMM")
+
+# Create unnormalized version for PCA comparison
+dge_raw <- dds_to_dgelist(targetGenome_dds, norm_method = "none")
 ```
 
 ## Sample Summary
 
 ```{r sample info}
-# Update analysis_data with the normalized size factors
-colData(analysis_data$dds)$sizeFactor <- dge$samples$norm.factors
-atac_qc_table <- summarize_atac_sample_qc(analysis_data, render_table = FALSE)
+# Update the DDS with normalized size factors from dge
+colData(targetGenome_dds)$sizeFactor <- dge$samples$norm.factors
+
+# Generate QC summary table
+# Extract file paths from colData if needed
+peak_files <- if ("peak_file" %in% colnames(colData(targetGenome_dds))) {
+  setNames(colData(targetGenome_dds)$peak_file, colnames(targetGenome_dds))
+} else {
+  NULL
+}
+
+flagstat_dir <- if (!is.null(report_params$qc_flagstat_dir)) {
+  report_params$qc_flagstat_dir
+} else {
+  NULL
+}
+
+atac_qc_table <- summarize_atac_sample_qc(
+  dds = targetGenome_dds, 
+  peak_files = peak_files,
+  flagstat_dir = flagstat_dir,
+  render_table = FALSE
+)
+
 DT::datatable(atac_qc_table, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
 ```
 
@@ -571,21 +524,16 @@ dge <- dge[, colnames(dge) %in% high_quality_samples]
 ```
 
 ```{r analysis}
-# Source the file to define the function
-invisible(
-  suppressMessages(
-    suppressWarnings(
-      capture.output(source("R/analysis.R", local = knitr::knit_global()))
-    )
-  )
-)
+# add annotations to DGEList right after normalization
+row.names(peaks_anno) <- peaks_anno$interval
+dge$genes <- peaks_anno[rownames(dge), ]
 
-# Now call the function with the required parameters
+# Then simplify the function call
 results_list <- run_differential_analysis(
-  dge = dge, 
-  peaks_anno = analysis_data$peaks_anno, 
+  dge = dge,  # DGEList with annotations already in dge$genes
   contrast_strings = contrast_strings,
-  report_params = report_params
+  min_count = report_params$min_count_for_filtering,
+  min_prop = report_params$min_prop_for_filtering
 )
 ```
 

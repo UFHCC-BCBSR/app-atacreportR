@@ -28,22 +28,23 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.align="cente
 # Load libraries
 library(DESeq2) #used in load data
 library(pheatmap)
-library(ggplot2)
+library(ggplot2) 
 library(GenomicRanges)
 library(dplyr) # used
 library(tibble)
 library(edgeR)
 library(limma)
-library(htmltools)
+library(htmltools) # used
 library(knitr)
-library(DT)
+library(DT) # used
 library(ggfortify)
 library(scales)
-library(stringr)
-library(downloadthis)
+library(stringr) # used
+library(downloadthis) # used
 library(gridExtra)
 library(atacreportR) # used
 source("text-config.R") # used
+library(jsonlite) # used
 select <- dplyr::select
 
 # Edit this for interactive use
@@ -408,47 +409,22 @@ grid.arrange(p1[[4]], p2[[4]], ncol = 2)
 ```
 
 ```{r annotate consensus peaks}
-# === 1. Use already loaded annotation from analysis_data ===
-# peaks_anno was already loaded in the "load data" chunk
-# No need to reload - just format it for consistency
-
-# === 2. Standardize column names (handle different annotation sources) ===
-# Handle HOMER format (from nf-core) vs ChIPseeker format (generated in R)
-if ("Chr" %in% colnames(peaks_anno) && "Start" %in% colnames(peaks_anno)) {
-  # HOMER format - already has Chr, Start, End
-  chr_col <- "Chr"
-  start_col <- "Start" 
-  end_col <- "End"
-} else if ("seqnames" %in% colnames(peaks_anno) && "start" %in% colnames(peaks_anno)) {
-  # ChIPseeker format - has seqnames, start, end
-  chr_col <- "seqnames"
-  start_col <- "start"
-  end_col <- "end"
-} else {
-  stop("Cannot identify chromosome/position columns in peak annotation")
-}
-
-# Ensure interval column is named consistently
-if (!"interval" %in% colnames(peaks_anno)) {
-  colnames(peaks_anno)[1] <- "interval"
-}
-
-# === 3. Create GRanges ===
-peak_gr <- GRanges(
-  seqnames = peaks_anno[[chr_col]],
-  ranges = IRanges(start = peaks_anno[[start_col]], end = peaks_anno[[end_col]])
-)
-names(peak_gr) <- peaks_anno$interval
-
-# Store in rownames if needed
-rownames(peaks_anno) <- peaks_anno$interval
-
-# === 4. Add simplified annotation if it doesn't exist ===
-if (!"Annotation_short" %in% colnames(peaks_anno)) {
-  if ("Annotation" %in% colnames(peaks_anno)) {
-    peaks_anno$Annotation_short <- gsub(" .*", "", peaks_anno$Annotation)
-  } else if ("annotation" %in% colnames(peaks_anno)) {
-    peaks_anno$Annotation_short <- gsub(" .*", "", peaks_anno$annotation)
+# Add simplified annotation column to dge$genes if it doesn't exist
+if (!"Annotation_short" %in% colnames(dge$genes)) {
+  
+  # Detect which annotation column exists (HOMER vs ChIPseeker format)
+  anno_col <- if ("Annotation" %in% colnames(dge$genes)) {
+    "Annotation"
+  } else if ("annotation" %in% colnames(dge$genes)) {
+    "annotation"
+  } else {
+    NULL
+  }
+  
+  # Add simplified annotation if source column found
+  if (!is.null(anno_col)) {
+    dge$genes$Annotation_short <- gsub(" .*", "", dge$genes[[anno_col]])
+    cat("Added Annotation_short column to dge$genes\n")
   }
 }
 ```
@@ -504,10 +480,6 @@ dge <- dge[, colnames(dge) %in% high_quality_samples]
 ```
 
 ```{r analysis}
-# add annotations to DGEList right after normalization
-row.names(peaks_anno) <- peaks_anno$interval
-dge$genes <- peaks_anno[rownames(dge), ]
-
 # Then simplify the function call
 results_list <- run_differential_analysis(
   dge = dge,  # DGEList with annotations already in dge$genes
@@ -552,8 +524,7 @@ In the per-contrast summary tables below, the "significance" column indicates th
 # Create a summary table per contrast
 summary_tables <- lapply(names(results_list), function(contrast) {
   df <- results_list[[contrast]]$table
-  contrast_clean <- gsub("\\.", "-", contrast)
-  df$contrast <- contrast_clean
+  df$contrast <- contrast
   
   # Split contrast and clean group names
   groups <- strsplit(contrast, "_vs_")[[1]]
@@ -562,14 +533,18 @@ summary_tables <- lapply(names(results_list), function(contrast) {
   
   df <- df %>%
     mutate(significance = case_when(
-      FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ paste("More Accessible (", group1_clean, ")"),
-      FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ paste("More Accessible (", group2_clean, ")"),
+      FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ 
+        paste("More Accessible (", group1_clean, ")"),
+      FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ 
+        paste("More Accessible (", group2_clean, ")"),
       TRUE ~ "Not Significant"
     ))
+  
   summary <- df %>%
     dplyr::count(significance) %>%
-    mutate(Contrast = paste(group1_clean, "vs", group2_clean)) %>%  # Use cleaned names for display
+    mutate(Contrast = paste(group1_clean, "vs", group2_clean)) %>%
     select(Contrast, everything())
+  
   return(summary)
 })
 
@@ -605,15 +580,11 @@ tagList(output_tables)
 ## Downloadable Results Tables
 
 ```{r annotation_description, echo=FALSE, results='asis'}
-annotation_text <- get_annotation_description_text(peaks_anno)
+annotation_text <- get_annotation_description_text(dge$genes)
 knitr::asis_output(annotation_text)
 ```
 
-```{r make downloads, message=FALSE, warning=FALSE,eval = !params$test_mode}
-library(dplyr)
-library(stringr)
-library(downloadthis)
-library(htmltools)
+```{r make downloads, message=FALSE, warning=FALSE, eval = !params$test_mode}
 
 # STEP 1: Create in-memory data frame lists for SIGNIFICANT results
 promoter_lists <- list()
@@ -623,16 +594,17 @@ allregion_lists <- list()
 full_results_lists <- list()
 
 for (cn in names(results_list)) {
-  cn_clean <- gsub("\\.", "-", cn)  # Restores the original contrast name with "-"
   contrast_data <- results_list[[cn]]$table
-  parts <- str_split(cn_clean, "_vs_", simplify = TRUE)
-  left <- clean_group_name(parts[1])      # Clean group names
-  right <- clean_group_name(parts[2])     # Clean group names
+  
+  # Split contrast and clean group names
+  parts <- str_split(cn, "_vs_", simplify = TRUE)
+  left <- clean_group_name(parts[1])
+  right <- clean_group_name(parts[2])
   
   # Create clean contrast name for display
   cn_display <- paste(left, "vs", right)
   
-  # Promoter regions - handle both HOMER and ChIPseeker column names
+  # Detect distance to TSS column (handle both HOMER and ChIPseeker formats)
   distance_col <- if ("Distance.to.TSS" %in% colnames(contrast_data)) {
     "Distance.to.TSS"  # HOMER format
   } else if ("distanceToTSS" %in% colnames(contrast_data)) {
@@ -644,12 +616,13 @@ for (cn in names(results_list)) {
   }
   
   # === SIGNIFICANT RESULTS ===
-  # Promoter regions
-  prom_df <- contrast_data %>% filter(FDR < report_params$sig_cutoff, abs(.data[[distance_col]]) < 1000)
+  # Promoter regions (within 1kb of TSS)
+  prom_df <- contrast_data %>% 
+    filter(FDR < report_params$sig_cutoff, abs(.data[[distance_col]]) < 1000)
   prom_left <- prom_df %>% filter(logFC > report_params$logFC_cutoff)
   prom_right <- prom_df %>% filter(logFC < -report_params$logFC_cutoff)
   
-  promoter_lists[[cn_display]] <- setNames(  # Use cleaned display name
+  promoter_lists[[cn_display]] <- setNames(
     list(prom_left, prom_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
   )
@@ -659,7 +632,7 @@ for (cn in names(results_list)) {
   all_left <- all_df %>% filter(logFC > report_params$logFC_cutoff)
   all_right <- all_df %>% filter(logFC < -report_params$logFC_cutoff)
   
-  allregion_lists[[cn_display]] <- setNames(  # Use cleaned display name
+  allregion_lists[[cn_display]] <- setNames(
     list(all_left, all_right),
     c(paste0("More acc. in ", left), paste0("More acc. in ", right))
   )
@@ -672,8 +645,8 @@ for (cn in names(results_list)) {
 promoter_buttons <- purrr::map2(promoter_lists, names(promoter_lists), function(datalist, cn_display) {
   download_this(
     .data = datalist,
-    output_name = paste0(report_params$seqID,"_Differential_Accessibility_Promoter_", gsub(" vs ", "_vs_", cn_display)),
-    button_label = paste0(report_params$seqID,"_DA Promoter Peaks:<br>", cn_display),
+    output_name = paste0(report_params$seqID, "_Differential_Accessibility_Promoter_", gsub(" vs ", "_vs_", cn_display)),
+    button_label = paste0(report_params$seqID, "_DA Promoter Peaks:<br>", cn_display),
     button_type = "primary",
     output_extension = ".xlsx"
   )
@@ -682,8 +655,8 @@ promoter_buttons <- purrr::map2(promoter_lists, names(promoter_lists), function(
 allregion_buttons <- purrr::map2(allregion_lists, names(allregion_lists), function(datalist, cn_display) {
   download_this(
     .data = datalist,
-    output_name = paste0(report_params$seqID,"_Differential_Accessibility_All_Regions_", gsub(" vs ", "_vs_", cn_display)),
-    button_label = paste0(report_params$seqID,"_DA All Region Peaks:<br>", cn_display),
+    output_name = paste0(report_params$seqID, "_Differential_Accessibility_All_Regions_", gsub(" vs ", "_vs_", cn_display)),
+    button_label = paste0(report_params$seqID, "_DA All Region Peaks:<br>", cn_display),
     button_type = "info",
     output_extension = ".xlsx"
   )
@@ -693,8 +666,8 @@ allregion_buttons <- purrr::map2(allregion_lists, names(allregion_lists), functi
 full_results_buttons <- purrr::map2(full_results_lists, names(full_results_lists), function(data_df, cn_display) {
   download_this(
     .data = data_df,
-    output_name = paste0(report_params$seqID,"_Differential_Accessibility_Full_Results_", gsub(" vs ", "_vs_", cn_display)),
-    button_label = paste0(report_params$seqID,"_Full DA Results:<br>", cn_display),
+    output_name = paste0(report_params$seqID, "_Differential_Accessibility_Full_Results_", gsub(" vs ", "_vs_", cn_display)),
+    button_label = paste0(report_params$seqID, "_Full DA Results:<br>", cn_display),
     button_type = "warning",
     output_extension = ".xlsx"
   )
@@ -767,28 +740,21 @@ Datahubs also include BigWig signal tracks for each individual sample, colored b
 **Clicking the "WashU Browser" links in the table below will open the tracks in the WashU Epigenome Browser.** Make sure to right click and select open a new tab if you do not want to navigate away from this report.
 
 ```{r create washU datahubs, eval = !params$test_mode, results='hide', message=FALSE, echo=FALSE}
-library(jsonlite)
-
 # Create datahubs for each contrast
 washU_urls <- list()
 base_web_dir <- "/orange/cancercenter-dept/web/public/BCB-SR/washU"
 base_web_url <- "https://data.rc.ufl.edu/pub/cancercenter-dept/BCB-SR/washU"
 
 for (contrast in names(results_list)) {
-  contrast_clean <- gsub("\\.", "_", contrast)
+  # Split and clean contrast name for display
+  parts <- strsplit(contrast, "_vs_")[[1]]
+  group1 <- clean_group_name(parts[1])
+  group2 <- clean_group_name(parts[2])
+  contrast_display <- paste(group1, "vs", group2, sep = "_")
   
-  # Clean the contrast name by removing X prefixes  
-  parts <- strsplit(contrast_clean, "_vs_")[[1]]
-  contrast_clean <- paste(clean_group_name(parts[1]), "vs", clean_group_name(parts[2]), sep = "_")
-  
-  # Create output directory - use slash structure: /washU/NS3971/04D_vs_67D/
-  project_dir <- file.path(base_web_dir, report_params$seqID, contrast_clean)
+  # Create output directory
+  project_dir <- file.path(base_web_dir, report_params$seqID, contrast_display)
   dir.create(project_dir, recursive = TRUE, showWarnings = FALSE)
-  
-  # Extract groups from contrast and clean them
-  groups <- strsplit(contrast, "_vs_")[[1]]
-  group1 <- clean_group_name(groups[1])
-  group2 <- clean_group_name(groups[2])
   
   # Group colors
   group_colors <- list()
@@ -799,57 +765,59 @@ for (contrast in names(results_list)) {
   tracks <- list()
   
   # Add DA peaks track
-  da_bigbed <- create_da_bigbed(
-    results_list[[contrast]]$table,
-    contrast_clean,
-    project_dir,
-    report_params$organism
-  )
-  # Determine ensemblStyle based on annotation source
-use_ensembl_style <- if (!is.null(analysis_data[["file_specs"]]$peak_annotation) && file.exists(analysis_data[["file_specs"]]$peak_annotation)) {
-  TRUE   # Using existing HOMER annotation file
-} else {
-  FALSE  # Using generated ChIPseeker annotation (we added chr prefixes)
-}
+ da_bigbed <- create_da_bigbed(
+  results_list[[contrast]]$table,
+  contrast_display,
+  project_dir,
+  organism = report_params$organism,
+  sig_cutoff = report_params$sig_cutoff,
+  logfc_cutoff = report_params$logFC_cutoff
+)
+  
+  # Determine ensemblStyle based on chromosome format in dge$genes
+  use_ensembl_style <- if ("Chr" %in% colnames(dge$genes)) {
+    # HOMER format - check if chromosomes have "chr" prefix
+    any(grepl("^chr", dge$genes$Chr, ignore.case = TRUE))
+  } else if ("seqnames" %in% colnames(dge$genes)) {
+    # ChIPseeker format - check seqnames
+    any(grepl("^chr", dge$genes$seqnames, ignore.case = TRUE))
+  } else {
+    FALSE  # Default to FALSE if can't determine
+  }
+  
   if (!is.null(da_bigbed)) {
     tracks <- append(tracks, list(list(
       type = "bigbed",
-      name = paste("DA Peaks", contrast_clean),
-      url = paste0(base_web_url, "/", report_params$seqID, "/", contrast_clean, "/", da_bigbed),
+      name = paste("DA Peaks", contrast_display),
+      url = paste0(base_web_url, "/", report_params$seqID, "/", contrast_display, "/", da_bigbed),
       showOnHubLoad = TRUE,
       options = list(
         height = 60,
         color = "black",
-        ensemblStyle = TRUE
+        ensemblStyle = use_ensembl_style
       )
     )))
   }
   
-  # Clean condition names in dge object to match our cleaned group names
- # dge$samples$Condition <- sapply(dge$samples$Condition, clean_group_name)
-  dge$samples[[report_params$variable]] <- sapply(dge$samples[[report_params$variable]], clean_group_name)
   # Add BigWig tracks for each group
   for (group in c(group1, group2)) {
     # Find samples for this group
     group_samples <- rownames(dge$samples)[dge$samples[[report_params$variable]] == group]
     
     for (sample in group_samples) {
-      # Clean the sample name to match bigwig_files keys
-      clean_sample <- clean_group_name(sample)  # X04D_REP1 -> 04D_REP1
-      
-      # Get BigWig file path using cleaned sample name
-      if (clean_sample %in% names(analysis_data$bigwig_files)) {
-        bigwig_path <- analysis_data$bigwig_files[[clean_sample]]
+      # Get BigWig path from dge$samples
+      if ("bigwig_path" %in% colnames(dge$samples)) {
+        bigwig_path <- dge$samples[sample, "bigwig_path"]
         
-        if (file.exists(bigwig_path)) {
+        if (!is.na(bigwig_path) && file.exists(bigwig_path)) {
           bigwig_filename <- basename(bigwig_path)
           
           # Copy BigWig to web directory
           if (copy_file_to_web(bigwig_path, project_dir, bigwig_filename)) {
             tracks <- append(tracks, list(list(
               type = "bigwig",
-              name = paste(clean_sample, group),
-              url = paste0(base_web_url, "/", report_params$seqID, "/", contrast_clean, "/", bigwig_filename),
+              name = paste(sample, group),
+              url = paste0(base_web_url, "/", report_params$seqID, "/", contrast_display, "/", bigwig_filename),
               showOnHubLoad = TRUE,
               options = list(
                 height = 50,
@@ -867,11 +835,10 @@ use_ensembl_style <- if (!is.null(analysis_data[["file_specs"]]$peak_annotation)
   json_file <- file.path(project_dir, "datahub.json")
   writeLines(toJSON(tracks, pretty = TRUE, auto_unbox = TRUE), json_file)
   
-  # Set permissions on the project directory and all contents
+  # Set permissions
   system2("chmod", args = c("-R", "o+rX", project_dir))
-  
-  # Ensure parent directories are traversable
   system2("chmod", args = c("o+rx", base_web_dir))
+  
   parent_seq_dir <- file.path(base_web_dir, report_params$seqID)
   if (dir.exists(parent_seq_dir)) {
     system2("chmod", args = c("o+rx", parent_seq_dir))
@@ -879,7 +846,7 @@ use_ensembl_style <- if (!is.null(analysis_data[["file_specs"]]$peak_annotation)
   
   # Generate WashU URL
   genome_alias <- if (report_params$organism == "mmu") "mm10" else "hg38"
-  datahub_url <- paste0(base_web_url, "/", report_params$seqID, "/", contrast_clean, "/datahub.json")
+  datahub_url <- paste0(base_web_url, "/", report_params$seqID, "/", contrast_display, "/datahub.json")
   washU_url <- paste0("https://epigenomegateway.wustl.edu/browser/?genome=",
                       genome_alias, "&hub=", URLencode(datahub_url))
   
@@ -914,14 +881,17 @@ all_results <- bind_rows(
   lapply(names(results_list), function(contrast) {
     df <- results_list[[contrast]]$table
     df$contrast <- contrast
+    
     parts <- str_split(contrast, "_vs_", simplify = TRUE)
-    left <- str_trim(parts[1])
-    right <- str_trim(parts[2])
+    left <- clean_group_name(parts[1])
+    right <- clean_group_name(parts[2])
     
     df <- df %>%
       mutate(significance = case_when(
-        FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ paste0(right, "\n(More Accessible)"),
-        FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ paste0(left, "\n(More Accessible)"),
+        FDR < report_params$sig_cutoff & logFC > report_params$logFC_cutoff ~ 
+          paste0(right, "\n(More Accessible)"),
+        FDR < report_params$sig_cutoff & logFC < -report_params$logFC_cutoff ~ 
+          paste0(left, "\n(More Accessible)"),
         TRUE ~ "Not Significant"
       ))
     return(df)
@@ -933,15 +903,17 @@ interactive_plots <- lapply(unique(all_results$contrast), function(cn) {
   contrast_df <- all_results %>% filter(contrast == cn)
   contrast_df <- contrast_df %>% filter(!is.na(Annotation_short))
   
+  # Create display name
+  parts <- str_split(cn, "_vs_", simplify = TRUE)
+  contrast_display <- paste(clean_group_name(parts[1]), "vs", clean_group_name(parts[2]))
+  
   p <- ggplot(contrast_df, aes(x = significance, fill = Annotation_short)) +
-    #geom_bar(position = "stack", width = 0.6) +
     geom_bar(stat = "count", position = "stack", width = 0.6) +
-    geom_text(stat = "count", aes(label = after_stat(count)), 
-          position = position_stack(vjust = 0.5), size = 3)+
-
+    geom_text(stat = "count", aes(label = after_stat(count)),
+              position = position_stack(vjust = 0.5), size = 3) +
     scale_fill_brewer(palette = "Paired") +
     labs(
-      title = paste("Consensus Peak Annotation by Accessibility Category:\n", gsub("\\.", "-", cn)),
+      title = paste("Consensus Peak Annotation by Accessibility Category:\n", contrast_display),
       x = "Accessibility Category",
       y = "Number of Consensus Peaks",
       fill = "Annotation"

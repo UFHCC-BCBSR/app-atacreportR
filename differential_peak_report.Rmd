@@ -54,12 +54,12 @@ params_path <- "/blue/zhangw/BCBSR_BIOINFORMATICS/hkates/TANZIA/MLH1MSH2/NS3842_
 ```{r parse-params, include=FALSE}
 # Priority 1: Use params$params_file (passed from sbatch) - this overrides hardcoded
 if (exists("params") && !is.null(params$params_file) && params$params_file != "" && file.exists(params$params_file)) {
-  message("🔄 Using sbatch params file: ", basename(params$params_file))
+  message("Using sbatch params file: ", basename(params$params_file))
   params_file_to_use <- params$params_file
   
 # Priority 2: Fall back to hardcoded params_path (for interactive RStudio testing)
 } else if (exists("params_path") && !is.null(params_path) && params_path != "" && file.exists(params_path)) {
-  message("🔄 Using interactive params file: ", basename(params_path))
+  message("Using interactive params file: ", basename(params_path))
   params_file_to_use <- params_path
   
 # Priority 3: Error - no valid params found
@@ -946,29 +946,34 @@ Gene Ontology enrichment of gene annotation of differentially accessibile region
 To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 term, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 
 ```{r run GO enrich, eval = !params$test_mode}
+n_cores <- if (!is.null(report_params$enrichment_cores)) {
+  report_params$enrichment_cores
+} else {
+  1
+}
 # Perform GO Enrichment for BP, MF, CC
 GO_BP_results <- generate_enrichment_plot_atac(
-  gene_lists = gene_list_named, 
-  de_results_df = de_results_df, 
-  universe_entrez = universe_entrez,
-  ont_category = "BP",
-  annotation_db = report_params$annotation_db
+  gene_lists = enrichment_data$gene_lists,
+  de_results_df = enrichment_data$results_df,
+  universe_entrez = enrichment_data$universe,
+  org_db = enrichment_data$org_db,
+  ont_category = "BP",n_cores = n_cores
 )
 
 GO_MF_results <- generate_enrichment_plot_atac(
-  gene_lists = gene_list_named, 
-  de_results_df = de_results_df, 
-  universe_entrez = universe_entrez,
-  ont_category = "MF",
-  annotation_db = report_params$annotation_db
+  gene_lists = enrichment_data$gene_lists,
+  de_results_df = enrichment_data$results_df,
+  universe_entrez = enrichment_data$universe,
+  org_db = enrichment_data$org_db,
+  ont_category = "MF",n_cores = n_cores
 )
 
 GO_CC_results <- generate_enrichment_plot_atac(
-  gene_lists = gene_list_named, 
-  de_results_df = de_results_df, 
-  universe_entrez = universe_entrez,
-  ont_category = "CC",
-  annotation_db = report_params$annotation_db
+  gene_lists = enrichment_data$gene_lists,
+  de_results_df = enrichment_data$results_df,
+  universe_entrez = enrichment_data$universe,
+  org_db = enrichment_data$org_db,
+  ont_category = "CC",n_cores = n_cores
 )
 ```
 
@@ -1019,34 +1024,42 @@ KEGG enrichment was performed using the enrichKEGG function in clusterProfiler v
 
 To assess similarities between gene lists' enrichment results, if a gene list(s) had significant results for a different gene lists' top-10 pathway, that result is displayed as well regardless of whether or not the result was in top 10. **Downloadable results excel file** include all significant results for all gene lists.
 
-```{r KEGG, eval=TRUE, message=FALSE, eval = !params$test_mode}
-# Run the KEGG enrichment function with error handling
+```{r KEGG, eval = TRUE, message = FALSE, eval = !params$test_mode}
+# Get number of cores from params
+n_cores <- if (!is.null(report_params$enrichment_cores)) {
+  report_params$enrichment_cores
+} else {
+  1
+}
+
+# Run KEGG enrichment with error handling
 kegg_results <- tryCatch({
   generate_kegg_enrichment_plot_atac(
-    gene_lists = gene_list_named, 
-    de_results_df = de_results_df, 
-    universe_entrez = universe_entrez,
-    annotation_db = report_params$annotation_db 
+    gene_lists = enrichment_data$gene_lists,
+    de_results_df = enrichment_data$results_df,
+    universe_entrez = enrichment_data$universe,
+    org_db = enrichment_data$org_db,
+    organism = report_params$organism,
+    n_cores = n_cores
   )
 }, error = function(e) {
-  message("[INFO] KEGG enrichment was not performed due to no enrichment found in any gene list")
+  message("[INFO] KEGG enrichment failed: ", e$message)
   NULL
 })
 ```
 
-```{r kegg plot,fig.width=12, fig.height=10, eval = !params$test_mode}
+```{r kegg plot, fig.width = 12, fig.height = 10, eval = !params$test_mode}
 # Only proceed if kegg_results is not NULL
-if (!is.null(kegg_results)) {
+if (!is.null(kegg_results) && !is.null(kegg_results$kegg_results)) {
+  # Display static plot download button
   download_button_png(kegg_results$static_plot, "kegg_enrichment_plot", height = 12)
-}
-
-# Display interactive plot (renders automatically when outside braces)
-if (!is.null(kegg_results)) kegg_results$interactive_plot
-
-# Continue with data processing
-if (!is.null(kegg_results)) {
-  kegg_results[["kegg_results"]]$GeneSymbols <- gsub("<br>", "/", kegg_results[["kegg_results"]]$GeneSymbols)
-  kegg_results[["kegg_results"]] %>%
+  
+  # Display interactive plot (needs explicit print in control flow)
+  print(kegg_results$interactive_plot)
+  
+  # Download results
+  kegg_results$kegg_results %>%
+    mutate(GeneSymbols = gsub("<br>", "/", GeneSymbols)) %>%
     downloadthis::download_this(
       output_name = paste(report_params$seqID, "KEGG_results", sep = "_"),
       output_extension = ".xlsx",

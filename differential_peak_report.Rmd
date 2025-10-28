@@ -27,7 +27,7 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.align="cente
 
 # Load libraries
 library(DESeq2) #used in load data
-library(pheatmap)
+library(pheatmap) # used 
 library(ggplot2) 
 library(GenomicRanges)
 library(dplyr) # used

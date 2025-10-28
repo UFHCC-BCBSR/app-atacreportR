@@ -286,13 +286,17 @@ peak_data_list %>% downloadthis::download_this(
 ```
 
 ```{r contrast-load}
-contrast_input <- report_params$contrasts
-contrast_list <- parse_contrasts(contrast_input)
-
+# Parse contrasts from report_params (using rmd-helper)
+contrast_list <- parse_contrasts(report_params$contrasts)
 num_of_contrasts <- length(contrast_list)
+
+# Format for display in Rmd (numbered, human-readable)
 contrast_strings <- sapply(seq_along(contrast_list), function(i) {
   paste0(i, ". ", contrast_list[[i]][1], " vs ", contrast_list[[i]][2])
 })
+
+# Create simple format for package function (will use after refactoring)
+contrasts <- sapply(contrast_list, function(x) paste(x, collapse = "_vs_"))
 ```
 
 ## Quality Control Plots
@@ -507,7 +511,7 @@ dge$genes <- peaks_anno[rownames(dge), ]
 # Then simplify the function call
 results_list <- run_differential_analysis(
   dge = dge,  # DGEList with annotations already in dge$genes
-  contrast_strings = contrast_strings,
+  contrasts = contrasts,
   min_count = report_params$min_count_for_filtering,
   min_prop = report_params$min_prop_for_filtering
 )

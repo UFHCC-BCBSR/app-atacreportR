@@ -53,3 +53,32 @@ prepare_analysis_data_from_params <- function(report_params) {
 
 # Null coalescing operator
 `%||%` <- function(x, y) if (is.null(x) || (is.character(x) && x == "")) y else x
+
+#' Parse contrast specifications
+#'
+#' Parses contrast strings from either a file or comma-separated string.
+#'
+#' @param x Character string: either a file path or comma-separated contrasts
+#'
+#' @return List where each element is a character vector of length 2 (group1, group2)
+#'
+#' @importFrom stringr str_trim str_split
+#' @export
+parse_contrasts <- function(x) {
+  if (file.exists(x)) {
+    contrast_lines <- readLines(x, warn = FALSE)
+  } else {
+    contrast_lines <- unlist(strsplit(x, ","))
+  }
+
+  contrast_lines <- trimws(contrast_lines)
+  contrast_lines <- contrast_lines[contrast_lines != ""]
+
+  contrast_list <- lapply(contrast_lines, function(line) {
+    parts <- strsplit(line, "_vs_")[[1]]
+    if (length(parts) != 2) stop(paste("Invalid contrast:", line))
+    parts
+  })
+
+  return(contrast_list)
+}
